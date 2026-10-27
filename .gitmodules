@@ -1,0 +1,6 @@
+[submodule "third_party/lemus"]
+	path = third_party/lemus
+	url = https://github.com/lemus-dev/lemus.git
+[submodule "third_party/max-sdk-base"]
+	path = third_party/max-sdk-base
+	url = https://github.com/Cycling74/max-sdk-base.git
