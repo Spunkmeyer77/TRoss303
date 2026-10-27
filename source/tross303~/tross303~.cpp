@@ -118,6 +118,7 @@ KNOB(cutmax, cutMaxHz)
 static void m_wave(t_tross303 *x, long v) { x->synth->params.square.store(v != 0); }
 static void m_transpose(t_tross303 *x, long v) { x->synth->params.transpose.store(int(v < -24 ? -24 : v > 24 ? 24 : v)); }
 static void m_seq(t_tross303 *x, long v) { x->synth->params.seqOn.store(v != 0); }
+static void m_transport(t_tross303 *x, long v) { x->synth->params.transport.store(v != 0); }
 
 // ---- MIDI -------------------------------------------------------------------------------
 
@@ -339,6 +340,7 @@ void ext_main(void *)
 	class_addmethod(c, (method)m_wave, "wave", A_LONG, 0);
 	class_addmethod(c, (method)m_transpose, "transpose", A_LONG, 0);
 	class_addmethod(c, (method)m_seq, "seq", A_LONG, 0);
+	class_addmethod(c, (method)m_transport, "transport", A_LONG, 0);
 
 	class_addmethod(c, (method)m_note, "note", A_LONG, A_LONG, 0);
 	class_addmethod(c, (method)m_flush, "flush", 0);

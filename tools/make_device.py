@@ -118,6 +118,20 @@ wire(thisdev, 0, trig, 0)
 wire(trig, 0, refresh, 0)
 wire(refresh, 0, eng, 0)
 
+# Live's play state: live_set is_playing -> "transport 0/1".
+lpath_msg = msg("path live_set", (200, 50, 80, 22))
+lpath = obj("live.path", (200, 80, 80, 22), 1, 3, ["", "", ""])
+lprop = msg("property is_playing", (300, 80, 110, 22))
+lobs = obj("live.observer", (200, 110, 100, 22), 2, 2, ["", ""])
+ptrans = obj("prepend transport", (200, 140, 100, 22))
+wire(trig, 1, lpath_msg, 0)
+wire(trig, 1, lprop, 0)
+wire(lpath_msg, 0, lpath, 0)
+wire(lpath, 0, lobs, 1)
+wire(lprop, 0, lobs, 0)
+wire(lobs, 0, ptrans, 0)
+wire(ptrans, 0, eng, 0)
+
 ctl = []  # (box id, message) pairs: each control's value goes to the engine as "<message> <value>"
 
 # ---- Knobs (303 row) -------------------------------------------------------------------------

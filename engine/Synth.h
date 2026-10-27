@@ -24,6 +24,8 @@ struct Params {
 	std::atomic<double> cutMaxHz{2300}; // how high full CUT OFF reaches (1200-3000 Hz), as the plugin's CUT OFF MAX
 	std::atomic<int> transpose{0};      // semitones added to the sequencer's notes
 	std::atomic<bool> seqOn{true};      // the sequencer plays while Live's transport runs
+	std::atomic<bool> transport{true};  // Live's play state (live.observer is_playing); the
+	                                    // beat phase stopping also counts as stopped
 };
 
 class Synth {

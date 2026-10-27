@@ -39,7 +39,7 @@ jobs:
           cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
           cmake --build build --config Release 2>&1 | tee build.log || { grep -E "error:" build.log | sort -u | head -15 | sed 's/^/::error::/'; exit 1; }
           ls -la externals
-          lipo -info "externals/tross303~.mxo/Contents/MacOS/tross303~"
+          echo "::notice::$(lipo -info "externals/tross303~.mxo/Contents/MacOS/tross303~")"
           codesign -dv "externals/tross303~.mxo" || true
       - name: Pack
         run: cd externals && ditto -c -k --keepParent "tross303~.mxo" ../mxo.zip
@@ -103,6 +103,7 @@ jobs:
           (cd dist && zip -qr "TRoss303-${VERSION}.zip" "TRoss 303")
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           ls -laR dist
+          echo "::notice::package: $(cd dist && find . -maxdepth 3 | sort | tr '\n' ' ')"
       - uses: actions/upload-artifact@v4
         with:
           name: TRoss303-${{ env.VERSION }}

@@ -263,7 +263,8 @@ void Synth::process(const double *beatPhase, float *out, int n)
 			}
 		}
 
-		if (beatPhase && seqOn) {
+		const bool playing = params.transport.load(std::memory_order_relaxed);
+		if (beatPhase && seqOn && playing) {
 			const double ph = beatPhase[i];
 			if (ph != m_lastPhase && m_lastPhase >= 0) {
 				m_still = 0;
