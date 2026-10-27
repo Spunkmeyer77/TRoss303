@@ -35,7 +35,7 @@ macOS (`tross303~.mxo`, Apple Silicon + Intel) and Windows (`tross303~.mxe64`), 
 
 ## Building
 
-Needs CMake 3.25+ and a C++17 compiler (Xcode on macOS, Visual Studio 2022 on Windows).
+Needs CMake 3.25+ and a C++17 compiler (Xcode on macOS, Visual Studio 2022 or newer on Windows).
 
 ```sh
 git clone --recursive https://github.com/Spunkmeyer77/TRoss303.git
