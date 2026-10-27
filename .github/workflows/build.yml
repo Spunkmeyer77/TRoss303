@@ -35,8 +35,9 @@ jobs:
           submodules: true
       - name: Build tross303~.mxo (arm64 + x86_64)
         run: |
+          set -o pipefail
           cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
-          cmake --build build --config Release
+          cmake --build build --config Release 2>&1 | tee build.log || { grep -E "error:" build.log | sort -u | head -15 | sed 's/^/::error::/'; exit 1; }
           ls -la externals
           lipo -info "externals/tross303~.mxo/Contents/MacOS/tross303~"
           codesign -dv "externals/tross303~.mxo" || true
@@ -54,10 +55,12 @@ jobs:
         with:
           submodules: true
       - name: Build tross303~.mxe64
+        shell: bash
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-          cmake --build build --config Release
-          dir externals
+          set -o pipefail
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 2>&1 | tee configure.log || { grep -i "error" configure.log | head -15 | sed 's/^/::error::/'; exit 1; }
+          cmake --build build --config Release 2>&1 | tee build.log || { grep -E "error|fatal" build.log | sort -u | head -15 | sed 's/^/::error::/'; exit 1; }
+          ls -la externals
       - uses: actions/upload-artifact@v4
         with:
           name: win-external
