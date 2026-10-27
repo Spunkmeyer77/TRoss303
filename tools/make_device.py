@@ -106,7 +106,7 @@ wire(store, 0, eng, 0)
 
 # Panel
 panel = box("jsui", (600, 40, W, H), (0, 0, W, H), filename="tross303_panel.js", numinlets=1,
-            numoutlets=1, outlettype=[""], border=0, parameter_enable=0)
+            numoutlets=1, outlettype=[""], border=0, parameter_enable=0, background=1)
 wire(panel, 0, eng, 0)
 wire(eng, 1, panel, 0)
 
