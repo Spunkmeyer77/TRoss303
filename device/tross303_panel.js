@@ -18,7 +18,7 @@ mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
-var VERSION = "1.1.0";
+var VERSION = "1.1.1";
 var GUMROAD = "https://ticcoross.gumroad.com/";
 var EMAIL = "ticcoross@gmail.com";
 

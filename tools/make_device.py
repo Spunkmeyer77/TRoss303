@@ -204,6 +204,8 @@ for k, (name, lane, label) in enumerate(locks):
                    enum=["off", "on"], initial=0, extra=dict(invisible_button, text="", texton="", mode=1))
     ctl.append((i, "rlock " + lane))
 
+toggles = {seq} | {i for i, m in ctl if m.startswith("rlock ")}
+
 # Wire every control: value -> [prepend msg] -> engine, value -> [prepend ctl msg] -> panel,
 # device start -> bang -> control (so everything starts in sync).
 for k, (i, m) in enumerate(ctl):
@@ -214,7 +216,10 @@ for k, (i, m) in enumerate(ctl):
     wire(p, 0, eng, 0)
     wire(i, 0, q, 0)
     wire(q, 0, panel, 0)
-    wire(trig, 1, i, 0)
+    # A bang makes dials, menus and number boxes report their value, but it FLIPS a live.text
+    # toggle, so the toggles are left alone: Live sends their stored value itself at load.
+    if i not in toggles:
+        wire(trig, 1, i, 0)
 
 # ---- Patcher ---------------------------------------------------------------------------------
 

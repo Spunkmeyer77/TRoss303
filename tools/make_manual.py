@@ -14,7 +14,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import (Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
                                 TableStyle)
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 ROOT = Path(__file__).resolve().parent.parent
 RED = colors.HexColor("#c0261a")
 DARK = colors.HexColor("#1c1c1f")
