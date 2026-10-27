@@ -133,85 +133,87 @@ wire(lobs, 0, ptrans, 0)
 wire(ptrans, 0, eng, 0)
 
 ctl = []  # (box id, message) pairs: each control's value goes to the engine as "<message> <value>"
+          # and to the panel as "ctl <message> <value>" so it can draw the knob or switch.
 
-# ---- Knobs (303 row) -------------------------------------------------------------------------
+# The panel draws the knobs, switches and lock keys; these live.* controls lie invisibly on top
+# (automatable, mappable, saved with the set). Menus and number boxes are visible readouts.
+CLEAR = [0.0, 0.0, 0.0, 0.0]
+invisible_dial = {k: CLEAR for k in ("dialcolor", "activedialcolor", "needlecolor", "activeneedlecolor",
+                                     "panelcolor", "focusbordercolor", "textcolor", "tricolor")}
+invisible_dial.update(showname=0, shownumber=0)
+invisible_button = {k: CLEAR for k in ("bgcolor", "bgoncolor", "activebgcolor", "activebgoncolor", "bordercolor",
+                                       "focusbordercolor", "textcolor", "textoncolor", "activetextcolor",
+                                       "activetextoncolor")}
+readout_style = {"activebgcolor": [0.08, 0.04, 0.03, 1.0], "bgcolor": [0.08, 0.04, 0.03, 1.0],
+                 "textcolor": [1.0, 0.27, 0.16, 1.0], "tricolor": [1.0, 0.27, 0.16, 1.0],
+                 "activeslidercolor": [0.77, 0.61, 0.24, 1.0], "bordercolor": CLEAR, "focusbordercolor": CLEAR,
+                 "fontsize": 7.5, "fontname": "Arial Bold"}
 
-dial_style = {"showname": 0, "shownumber": 0,
-              "dialcolor": [0.17, 0.17, 0.18, 1.0], "activedialcolor": [0.8, 0.2, 0.1, 1.0],
-              "needlecolor": [0.95, 0.95, 0.93, 1.0], "activeneedlecolor": [0.95, 0.95, 0.93, 1.0],
-              "panelcolor": [0.0, 0.0, 0.0, 0.0]}
+# ---- Sound knobs (centres match knobX() in tross303_panel.js) --------------------------------
+
 knobs = [("Tuning", "tuning", 5.0), ("Cutoff", "cutoff", 5.0), ("Resonance", "resonance", 5.0),
          ("Env Mod", "envmod", 5.0), ("Decay", "decay", 5.0), ("Accent", "accent", 5.0),
          ("Volume", "volume", 7.0)]
 for k, (name, m, init) in enumerate(knobs):
-    i = live_param("live.dial", (40 + k * 60, 140, 44, 36), (8 + k * 44, 17, 44, 38), name, name, 0, 0, 10,
-                   init, unitstyle=1, extra=dict(dial_style))
+    cx, cy = 34 + k * 50, 42
+    i = live_param("live.dial", (40 + k * 60, 140, 34, 34), (cx - 17, cy - 17, 34, 34), name, name, 0, 0, 10,
+                   init, unitstyle=1, extra=dict(invisible_dial))
     ctl.append((i, m))
 
-tab_style = {"activebgcolor": [0.17, 0.17, 0.18, 1.0], "activebgoncolor": [0.8, 0.2, 0.1, 1.0],
-             "textcolor": [0.9, 0.9, 0.88, 1.0], "textoncolor": [1, 1, 1, 1.0],
-             "fontsize": 8.0, "fontname": "Arial Bold"}
-wave = live_param("live.tab", (500, 140, 50, 16), (328, 43, 48, 13), "Waveform", "Wave", 2,
+SX = 388
+wave = live_param("live.tab", (500, 140, 28, 14), (SX + 2, 31, 28, 14), "Waveform", "Wave", 2,
                   enum=["SAW", "SQR"], initial=0, nout=3, otypes=["", "", "float"],
-                  extra=dict(tab_style, num_lines_patching=1, num_lines_presentation=1))
+                  extra=dict(invisible_button, num_lines_patching=1, num_lines_presentation=1))
 ctl.append((wave, "wave"))
 
-numbox_style = {"activebgcolor": [0.17, 0.17, 0.18, 1.0], "textcolor": [1.0, 0.6, 0.15, 1.0],
-                "activeslidercolor": [0.8, 0.2, 0.1, 1.0], "fontsize": 8.0, "fontname": "Arial Bold"}
-transp = live_param("live.numbox", (560, 140, 48, 15), (380, 43, 48, 13), "Transpose", "Transp", 1, -24, 24, 0,
-                    unitstyle=7, extra=dict(numbox_style))
+transp = live_param("live.numbox", (560, 140, 24, 11), (SX + 36, 32, 24, 11), "Transpose", "Transp", 1, -24, 24, 0,
+                    unitstyle=7, extra=dict(readout_style))
 ctl.append((transp, "transpose"))
 
-seq = live_param("live.text", (620, 140, 48, 15), (328, 25, 48, 13), "Sequencer", "Seq", 2,
-                 enum=["off", "on"], initial=1,
-                 extra=dict(text="SEQ", texton="SEQ ON", mode=1,
-                            bgcolor=[0.17, 0.17, 0.18, 1.0], bgoncolor=[0.8, 0.2, 0.1, 1.0],
-                            textcolor=[0.9, 0.9, 0.88, 1.0], textoncolor=[1, 1, 1, 1.0],
-                            fontsize=8.0, fontname="Arial Bold"))
+seq = live_param("live.text", (620, 140, 22, 19), (SX + 37, 48, 22, 19), "Sequencer", "Seq", 2,
+                 enum=["off", "on"], initial=1, extra=dict(invisible_button, text="", texton="", mode=1))
 ctl.append((seq, "seq"))
 
-cutmax = live_param("live.numbox", (680, 140, 48, 15), (380, 25, 48, 13), "Cut Max", "CutMax", 0, 1200, 3000, 2300,
-                    unitstyle=3, extra=dict(numbox_style))
+cutmax = live_param("live.numbox", (680, 140, 40, 11), (294, 9.5, 40, 11), "Cut Max", "CutMax", 0, 1200, 3000, 2300,
+                    unitstyle=3, extra=dict(readout_style))
 ctl.append((cutmax, "cutmax"))
 
-# ---- Random creator ---------------------------------------------------------------------------
+# ---- Random creator (matches drawRandomBlock() in tross303_panel.js) -------------------------
 
-menu_style = {"activebgcolor": [0.24, 0.24, 0.25, 1.0], "textcolor": [0.95, 0.95, 0.93, 1.0],
-              "tricolor": [0.8, 0.2, 0.1, 1.0], "fontsize": 8.0, "fontname": "Arial Bold"}
 scales = ["Chromatic", "Major", "Minor", "Dorian", "Phrygian", "Mixolydian", "Harm Minor", "Min Penta",
           "Blues", "Acid"]
-rscale = live_param("live.menu", (40, 220, 80, 15), (RX + 74, 82, 80, 15), "Random Scale", "Scale", 2,
-                    enum=scales, initial=9, nout=3, otypes=["", "", "float"], extra=dict(menu_style))
+rscale = live_param("live.menu", (40, 220, 54, 12), (650, 85, 54, 12), "Random Scale", "Scale", 2,
+                    enum=scales, initial=9, nout=3, otypes=["", "", "float"], extra=dict(readout_style))
 ctl.append((rscale, "rscale"))
 roots = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-rroot = live_param("live.menu", (130, 220, 40, 15), (RX + 160, 82, 44, 15), "Random Root", "Root", 2,
-                   enum=roots, initial=0, nout=3, otypes=["", "", "float"], extra=dict(menu_style))
+rroot = live_param("live.menu", (130, 220, 30, 12), (708, 85, 30, 12), "Random Root", "Root", 2,
+                   enum=roots, initial=0, nout=3, otypes=["", "", "float"], extra=dict(readout_style))
 ctl.append((rroot, "rroot"))
 
-small_dial = dict(dial_style)
 for k, (name, m, init) in enumerate([("Rnd Density", "rdensity", 70.0), ("Rnd Accent", "raccent", 30.0),
                                      ("Rnd Slide", "rslide", 25.0), ("Rnd Octave", "rspread", 30.0)]):
-    cx = RX + 92 + k * 44
-    i = live_param("live.dial", (40 + k * 60, 260, 36, 32), (cx - 18, 101, 36, 32), name, name.split()[1], 0,
-                   0, 100, init, unitstyle=5, extra=dict(small_dial))
+    cx, cy = 478 + k * 42, 103
+    i = live_param("live.dial", (40 + k * 60, 260, 28, 28), (cx - 14, cy - 14, 28, 28), name, name.split()[1], 0,
+                   0, 100, init, unitstyle=5, extra=dict(invisible_dial))
     ctl.append((i, m))
 
-lock_style = dict(mode=1, bgcolor=[0.24, 0.24, 0.25, 1.0], bgoncolor=[0.92, 0.55, 0.12, 1.0],
-                  textcolor=[0.9, 0.9, 0.88, 1.0], textoncolor=[0.1, 0.1, 0.1, 1.0],
-                  fontsize=7.0, fontname="Arial Bold")
 locks = [("Lock Notes", "notes", "NOTE"), ("Lock Octaves", "octaves", "OCT"), ("Lock Accents", "accents", "ACC"),
          ("Lock Slides", "slides", "SLIDE"), ("Lock Time", "time", "TIME")]
 for k, (name, lane, label) in enumerate(locks):
-    i = live_param("live.text", (40 + k * 60, 320, 40, 15), (RX + 30 + k * 44, 148, 40, 14), name, label, 2,
-                   enum=["off", "on"], initial=0, extra=dict(lock_style, text=label, texton=label))
+    i = live_param("live.text", (40 + k * 60, 320, 38, 12), (462 + k * 42, 145, 38, 12), name, label, 2,
+                   enum=["off", "on"], initial=0, extra=dict(invisible_button, text="", texton="", mode=1))
     ctl.append((i, "rlock " + lane))
 
-# Wire every control: value -> [prepend msg] -> engine; device start -> bang -> control.
+# Wire every control: value -> [prepend msg] -> engine, value -> [prepend ctl msg] -> panel,
+# device start -> bang -> control (so everything starts in sync).
 for k, (i, m) in enumerate(ctl):
-    y = 380 + (k % 2) * 26
-    p = obj("prepend " + m, (40 + (k // 2) * 110, y, 100, 22))
+    x = 40 + k * 120
+    p = obj("prepend " + m, (x, 380, 110, 22))
+    q = obj("prepend ctl " + m, (x, 410, 110, 22))
     wire(i, 0, p, 0)
     wire(p, 0, eng, 0)
+    wire(i, 0, q, 0)
+    wire(q, 0, panel, 0)
     wire(trig, 1, i, 0)
 
 # ---- Patcher ---------------------------------------------------------------------------------

@@ -14,7 +14,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import (Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
                                 TableStyle)
 
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 ROOT = Path(__file__).resolve().parent.parent
 RED = colors.HexColor("#c0261a")
 DARK = colors.HexColor("#1c1c1f")
@@ -105,11 +105,11 @@ def build(out):
         ["DECAY", "Filter envelope decay time (accented notes always use the short decay, like the original)."],
         ["ACCENT", "How strongly accented steps (and MIDI notes with velocity 100+) hit the filter and VCA."],
         ["VOLUME", "Output level."],
-        ["WAVE", "Saw or square oscillator."],
-        ["CUT MAX", "How high the CUT OFF knob reaches at full (1200-3000 Hz). Real units differ: 2300 Hz is a "
+        ["WAVEFORM", "Saw or square oscillator: click the switch."],
+        ["CUT MAX", "(Readout at the top.) How high the CUT OFF knob reaches at full (1200-3000 Hz). Real units differ: 2300 Hz is a "
                     "typical one, lower is darker."],
-        ["TRANSP", "Transposes the sequencer's notes, in semitones (-24 to +24)."],
-        ["SEQ", "Turns the built-in sequencer on or off. With it off, the device is a MIDI-played 303 voice."],
+        ["TRANSP", "Drag the readout up or down. Transposes the sequencer's notes, in semitones (-24 to +24)."],
+        ["SEQ", "Click the SEQ LED to turn the built-in sequencer on or off. With it off, the device is a MIDI-played 303 voice."],
     ], [30 * mm, 145 * mm]))
     s.append(Paragraph("Every control is a Live parameter: you can automate it, map it to MIDI or a Push, and it's "
                        "saved with your set.", SMALL))
@@ -137,20 +137,21 @@ def build(out):
          "Tie holds the previous note through this step. A tie after a rest plays nothing."],
     ], [20 * mm, 85 * mm, 70 * mm]))
     s.append(Paragraph(
-        "The LEDs above the steps show which step is playing (when the pattern you're editing is the one playing). "
-        "<b>LEN</b> &minus;/+ sets the pattern length, 1 to 16 steps; steps past the end are greyed out.", P))
+        "The <b>STEP</b> LEDs above the steps show which step is playing (when the pattern you're editing is the "
+        "one playing). <b>Click a STEP LED to set the pattern length</b> to that step (1 to 16); steps past the end "
+        "are dimmed. The LCD shows the pattern's length as <i>L16</i>, <i>L12</i> and so on.", P))
 
     s.append(Paragraph("5. Pattern memory", H2))
     s.append(Paragraph(
         "Like the TB-303 there are <b>64 patterns</b>: 4 groups (<b>I-IV</b>) &times; 8 patterns (<b>1-8</b>) "
         "&times; 2 sections (<b>A/B</b>). Pick a group, a pattern and a section to select one; the panel shows "
-        "<b>EDIT</b> (the pattern you're editing) and <b>PLAY</b> (the one playing). As on the original, a new "
+        "the pattern you're editing in large letters on the LCD, and <b>PLAY</b> with the one playing below it. As on the original, a new "
         "selection made while playing takes over when the current pattern reaches its end, so changes stay in time.",
         P))
     s.append(table([
         ["Button", "What it does"],
         ["COPY / PASTE", "Copy the selected pattern, then paste it into another one."],
-        ["CLEAR", "Clears the selected pattern (all rests, 16 steps)."],
+        ["CLEAR", "Clears the selected pattern (all rests, 16 steps). While chain EDIT is on, it clears the chain instead."],
         ["UNDO", "Undoes the last change to the selected pattern (random, clear, paste or an edit). "
                  "Press again to redo."],
     ], [30 * mm, 145 * mm]))
@@ -161,13 +162,15 @@ def build(out):
     s.append(Paragraph(
         "A chain plays up to 16 patterns in order and loops (for example I-1A, I-1A, I-1B, I-2A). Press <b>EDIT</b> "
         "(next to CHAIN) and click pattern buttons to add them to the end of the chain; the current group and "
-        "section are used, and clicking A or B adds that section. Press EDIT again to stop adding. <b>CHAIN</b> "
-        "turns chain playback on or off, and <b>CLR</b> empties the chain. With chain playback on, the sequencer "
+        "section are used, and clicking A or B adds that section; the LCD shows how many entries the chain has and the "
+        "last one added. Press EDIT again to stop adding. <b>CHAIN</b> (the gold key; its LED is lit when on) turns "
+        "chain playback on or off, and <b>CLEAR</b> pressed while EDIT is on empties the chain. With chain playback on, the sequencer "
         "plays the chain from its first entry each time Live starts.", P))
 
     s.append(Paragraph("7. Random pattern creator", H2))
     s.append(Paragraph(
-        "<b>RANDOM</b> writes a new acid line into the selected pattern. UNDO brings back the previous one. "
+        "The gold <b>RANDOM</b> key writes a new acid line into the selected pattern, and the LCD greets it with an "
+        "acid smiley for a moment. UNDO brings back the previous one. "
         "The controls next to it shape what it makes:", P))
     s.append(table([
         ["Control", "What it does"],
@@ -177,13 +180,14 @@ def build(out):
         ["ACCENT", "Chance of an accent on each step."],
         ["SLIDE", "Chance of a slide on each step."],
         ["OCTAVE", "How many steps get an octave UP or DOWN."],
-        ["LOCK", "Keeps a lane as it is when re-rolling: for example lock NOTE and OCT and press RANDOM again to "
+        ["LOCK", "Click a LOCK key (its LED lights) to keep a lane as it is when re-rolling: for example lock NOTE and OCT and press RANDOM again to "
                  "re-roll only the rhythm, accents and slides."],
     ], [30 * mm, 145 * mm]))
 
     s.append(Paragraph("8. About, credits and license", H2))
     s.append(Paragraph(
-        "Click the <b>i</b> button at the top right for the About window; click the Gumroad link to open the store.", P))
+        "Click the <b>TRoss 303</b> logo for the About window; click the Gumroad link (on the panel or in the About "
+        "window) to open the store.", P))
     s.append(Paragraph(
         "TRoss 303 by Ticco Ross &mdash; ticcoross@gmail.com &mdash; https://ticcoross.gumroad.com/", P))
     s.append(Paragraph(
