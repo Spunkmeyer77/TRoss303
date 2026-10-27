@@ -53,7 +53,7 @@ cmake -S . -B build-tests -DTROSS_TESTS=ON && cmake --build build-tests
 ```
 
 GitHub Actions builds both externals, assembles the device folder and the manual on every push,
-and publishes a release for every `v*` tag.
+and publishes (or updates) the release for the version in `VERSION`.
 
 ### Layout
 
