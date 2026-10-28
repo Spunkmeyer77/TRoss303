@@ -52,6 +52,13 @@ public:
 
 	// Pattern editing helpers for the message thread (each keeps one undo level per pattern).
 	void randomizeSelected(const RandomSettings &rs);
+	void varySelected(const RandomSettings &rs); // SHIFT + RANDOM: a small variation
+	// Per-pattern transpose of the selected pattern, dragged on the LCD. endTransposeDrag()
+	// closes the undo step.
+	void setSelectedTranspose(int semitones);
+	void endTransposeDrag() { m_transposeDrag = false; }
+	// What MIDI export writes: the chain when it is on and not empty, else the selected pattern.
+	std::vector<int> exportList() const;
 	void clearSelected();
 	void copySelected();
 	void pasteSelected();
@@ -113,6 +120,7 @@ private:
 	std::array<Pattern, kPatterns> m_undo{};
 	std::array<bool, kPatterns> m_hasUndo{};
 	Pattern m_clipboard;
+	bool m_transposeDrag = false;
 	bool m_hasClipboard = false;
 };
 

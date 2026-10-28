@@ -161,7 +161,8 @@ void Synth::seqStep()
 		next = bank.step(np, 0);
 	}
 
-	const int pitch = std::clamp(36 + params.transpose.load(std::memory_order_relaxed) + s.semis(), 12, 96);
+	const int pitch = std::clamp(36 + params.transpose.load(std::memory_order_relaxed) + bank.transpose(m_play) + s.semis(),
+	                             12, 96);
 
 	switch (s.time) {
 	case Time::Rest:
@@ -342,6 +343,37 @@ void Synth::randomizeSelected(const RandomSettings &rs)
 	Pattern pat = bank.get(p);
 	randomize(pat, rs, m_rng);
 	bank.put(p, pat);
+}
+
+void Synth::varySelected(const RandomSettings &rs)
+{
+	const int p = bank.selected();
+	rememberForUndo(p);
+	Pattern pat = bank.get(p);
+	vary(pat, rs, m_rng);
+	bank.put(p, pat);
+}
+
+void Synth::setSelectedTranspose(int t)
+{
+	const int p = bank.selected();
+	if (t == bank.transpose(p))
+		return;
+	if (!m_transposeDrag) // one undo step per drag, not per semitone
+		rememberForUndo(p);
+	m_transposeDrag = true;
+	bank.setTranspose(p, t);
+}
+
+std::vector<int> Synth::exportList() const
+{
+	std::vector<int> list;
+	if (bank.chainOn() && bank.chainLength() > 0)
+		for (int i = 0; i < bank.chainLength(); ++i)
+			list.push_back(bank.chainAt(i));
+	else
+		list.push_back(bank.selected());
+	return list;
 }
 
 void Synth::clearSelected()

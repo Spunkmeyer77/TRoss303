@@ -14,7 +14,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import (Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
                                 TableStyle)
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 ROOT = Path(__file__).resolve().parent.parent
 RED = colors.HexColor("#c0261a")
 DARK = colors.HexColor("#1c1c1f")
@@ -23,6 +23,7 @@ SILVER = colors.HexColor("#d6d6d2")
 ss = getSampleStyleSheet()
 H1 = ParagraphStyle("H1", parent=ss["Heading1"], textColor=DARK, fontSize=17, spaceBefore=6, spaceAfter=6)
 H2 = ParagraphStyle("H2", parent=ss["Heading2"], textColor=RED, fontSize=12.5, spaceBefore=10, spaceAfter=4)
+H3 = ParagraphStyle("H3", parent=ss["Heading3"], textColor=DARK, fontSize=10.5, spaceBefore=6, spaceAfter=3)
 P = ParagraphStyle("P", parent=ss["BodyText"], fontSize=9.6, leading=13.2, alignment=TA_LEFT)
 SMALL = ParagraphStyle("S", parent=P, fontSize=8.2, leading=11, textColor=colors.HexColor("#444444"))
 CODE = ParagraphStyle("C", parent=P, fontName="Courier", fontSize=8.6, leading=11.5, backColor=colors.HexColor("#f0f0ee"),
@@ -120,6 +121,9 @@ def build(out):
         "more is an accent</b> (velocity is otherwise ignored), and a note that starts while another is still held "
         "<b>slides</b> to its pitch without retriggering. Overlap notes in a clip to get slides. While you hold MIDI "
         "notes they take over from the sequencer.", P))
+    s.append(Paragraph(
+        "TRoss 303 is an instrument, so it doesn't send MIDI out to other tracks (Max for Live instruments can't). "
+        "To get its patterns as MIDI, use <b>MIDI EXPORT</b> (section 8).", P))
 
     s.append(Paragraph("4. The sequencer", H2))
     s.append(Paragraph(
@@ -138,7 +142,7 @@ def build(out):
     ], [20 * mm, 85 * mm, 70 * mm]))
     s.append(Paragraph(
         "The <b>STEP</b> LEDs above the steps show which step is playing (when the pattern you're editing is the "
-        "one playing). <b>Click a STEP LED to set the pattern length</b> to that step (1 to 16); steps past the end "
+        "one playing; while a chain plays, the step editor follows the pattern that is sounding). <b>Click a STEP LED to set the pattern length</b> to that step (1 to 16); steps past the end "
         "are dimmed. The LCD shows the pattern's length as <i>L16</i>, <i>L12</i> and so on.", P))
 
     s.append(Paragraph("5. Pattern memory", H2))
@@ -146,17 +150,36 @@ def build(out):
         "Like the TB-303 there are <b>64 patterns</b>: 4 groups (<b>I-IV</b>) &times; 8 patterns (<b>1-8</b>) "
         "&times; 2 sections (<b>A/B</b>). Pick a group, a pattern and a section to select one; the panel shows "
         "the pattern you're editing in large letters on the LCD, and <b>PLAY</b> with the one playing below it. As on the original, a new "
-        "selection made while playing takes over when the current pattern reaches its end, so changes stay in time.",
-        P))
+        "selection made while playing takes over when the current pattern reaches its end, so changes stay in time: "
+        "the LCD shows it as <b>NEXT</b>.", P))
+    s.append(Paragraph(
+        "The <b>red LEDs</b> under the pattern keys 1-8 always show the pattern that is <b>playing</b> (when it's in the "
+        "group and section shown). A pattern you selected that will play next <b>blinks</b>. When Live is stopped, "
+        "the LED shows the selected pattern. The orange LEDs show the group (I-IV) and section (A/B) you're in.", P))
+    s.append(Paragraph("The LCD", H3))
+    s.append(table([
+        ["Shows", "Meaning"],
+        ["I-1A", "The pattern you're editing (large)."],
+        ["L16", "Its length in steps."],
+        ["T+3", "Its own transpose (see below)."],
+        ["PLAY / STOP / NEXT", "What's playing, whether Live is stopped, and a pattern waiting to play next."],
+        ["CHAIN", "Chain information while chaining."],
+    ], [38 * mm, 137 * mm]))
+    s.append(Paragraph(
+        "<b>Touch the LCD</b> (click it) and the acid smiley appears. <b>Click and drag up or down on the LCD</b> to "
+        "set the selected pattern's own <b>transpose</b>, -12 to +12 semitones (shown as T+3, T-5&hellip;). Each "
+        "pattern keeps its own transpose, so a chain can move a line around without rewriting it. It adds to the "
+        "global TRANSP control, is saved with the pattern, is copied and pasted with it, and UNDO takes back a whole "
+        "drag.", P))
     s.append(table([
         ["Button", "What it does"],
         ["COPY / PASTE", "Copy the selected pattern, then paste it into another one."],
         ["CLEAR", "Clears the selected pattern (all rests, 16 steps). While chain EDIT is on, it clears the chain instead."],
-        ["UNDO", "Undoes the last change to the selected pattern (random, clear, paste or an edit). "
-                 "Press again to redo."],
+        ["UNDO", "Undoes the last change to the selected pattern (random, variation, clear, paste, transpose or an "
+                 "edit). Press again to redo."],
     ], [30 * mm, 145 * mm]))
-    s.append(Paragraph("All 64 patterns and the chain are saved inside your Live set, and each instance of the "
-                       "device has its own.", SMALL))
+    s.append(Paragraph("Every key on the panel goes down visibly while you press it. All 64 patterns and the "
+                       "chain are saved inside your Live set, and each instance of the device has its own.", SMALL))
 
     s.append(Paragraph("6. Pattern chaining", H2))
     s.append(Paragraph(
@@ -165,13 +188,20 @@ def build(out):
         "section are used, and clicking A or B adds that section; the LCD shows how many entries the chain has and the "
         "last one added. Press EDIT again to stop adding. <b>CHAIN</b> (the gold key; its LED is lit when on) turns "
         "chain playback on or off, and <b>CLEAR</b> pressed while EDIT is on empties the chain. With chain playback on, the sequencer "
-        "plays the chain from its first entry each time Live starts.", P))
+        "plays the chain from its first entry each time Live starts. While the chain plays, the step editor, the LCD "
+        "and the red pattern LEDs follow the pattern that is sounding, so you can watch (and edit) each one as it "
+        "comes round.", P))
 
     s.append(Paragraph("7. Random pattern creator", H2))
     s.append(Paragraph(
         "The gold <b>RANDOM</b> key writes a new acid line into the selected pattern, and the LCD greets it with an "
-        "acid smiley for a moment. UNDO brings back the previous one. "
-        "The controls next to it shape what it makes:", P))
+        "acid smiley for a moment. UNDO brings back the previous one.", P))
+    s.append(Paragraph(
+        "<b>SHIFT + RANDOM</b> makes a small <b>variation</b> of the pattern instead of a new one: 2 to 4 steps "
+        "change one thing each (a note moves within the scale, an octave flips, an accent or slide comes and goes, "
+        "a step plays or rests), so the line stays recognisable. Press it again for more variation; UNDO steps "
+        "back. Variations follow the same SCALE, ROOT and LOCK settings.", P))
+    s.append(Paragraph("The controls next to it shape what it makes:", P))
     s.append(table([
         ["Control", "What it does"],
         ["SCALE / ROOT", "Notes stay in this key. <i>Acid</i> is a root-heavy minor-seventh set, the classic sound; "
@@ -184,7 +214,19 @@ def build(out):
                  "re-roll only the rhythm, accents and slides."],
     ], [30 * mm, 145 * mm]))
 
-    s.append(Paragraph("8. About, credits and license", H2))
+    s.append(Paragraph("8. MIDI export", H2))
+    s.append(Paragraph(
+        "<b>MIDI EXPORT</b> (bottom right) saves a standard MIDI file (.mid). It exports the <b>selected pattern</b>, "
+        "or the <b>whole chain</b> in order when CHAIN is on. A save dialog asks where to put it; the name is "
+        "suggested for you (for example <i>TRoss303 I-1A.mid</i> or <i>TRoss303 chain.mid</i>). Drag the file into "
+        "Live (or any DAW) to get a MIDI clip of the line. The key's LED lights and the LCD says MIDI SAVED when "
+        "it's done.", P))
+    s.append(Paragraph(
+        "The file plays back the same through TRoss 303, a TB-03/TD-3 or any 303 that takes MIDI: accented steps "
+        "have velocity 127 (others 90), slides are overlapping notes, ties are long notes. Both transposes (TRANSP "
+        "and the pattern's own) are included, and the file carries Live's current tempo.", P))
+
+    s.append(Paragraph("9. About, credits and license", H2))
     s.append(Paragraph(
         "Click the <b>TRoss 303</b> logo for the About window; click the Gumroad link (on the panel or in the About "
         "window) to open the store.", P))
@@ -195,6 +237,21 @@ def build(out):
         "unchanged. Lemus and TRoss 303 are free software under the <b>GNU Affero General Public License v3</b>: "
         "the complete source code of this device is at https://github.com/Spunkmeyer77/TRoss303. TB-303 is a "
         "trademark of Roland Corporation; this product is not affiliated with or endorsed by Roland.", SMALL))
+
+    s.append(Paragraph("10. Version history", H2))
+    s.append(table([
+        ["Version", "Changes"],
+        ["1.2.0", "MIDI export of a pattern or the chain. SHIFT + RANDOM makes a variation. Per-pattern transpose "
+                  "(drag on the LCD). Bigger LCD with larger text and NEXT pattern info. The smiley appears whenever "
+                  "the LCD is touched. Red pattern LEDs follow the playing pattern (the next one blinks). The step "
+                  "editor follows the sounding pattern while a chain plays. Every key shows when it's pressed."],
+        ["1.1.1", "Fix: LOCK keys turned themselves on when the device loaded, so RANDOM changed nothing; SEQ "
+                  "could start switched off."],
+        ["1.1.0", "Silver Classic panel: chicken-head knobs, rubber keys, LEDs, green LCD with acid smiley, gold "
+                  "keys. Pattern length set from the STEP LEDs."],
+        ["1.0.1", "Fix: the panel drawing hid the controls."],
+        ["1.0.0", "First release: Lemus TB-303 voice, 303 sequencer, 64-pattern memory, chain, random creator."],
+    ], [22 * mm, 153 * mm]))
 
     doc = SimpleDocTemplate(str(out), pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm,
                             topMargin=22 * mm, bottomMargin=16 * mm,

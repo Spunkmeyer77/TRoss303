@@ -1,5 +1,6 @@
 // TRoss 303 engine tests: runs the sequencer against a simulated Live transport and
 // renders WAVs to listen to. Build: cmake -B build -DTROSS_TESTS=ON && cmake --build build
+#include "MidiExport.h"
 #include "Synth.h"
 
 #include <cmath>
@@ -271,6 +272,147 @@ int main(int argc, char **argv)
 		CHECK(finite(out));
 		CHECK(rms(out, 0, size_t(rate * 2)) > 1e-3);
 		writeWav(dir + "/midi.wav", out, rate);
+	}
+
+
+	// 8. Bank v2 keeps the per-pattern transpose; v1 data (TRoss 303 1.0-1.1) still loads.
+	{
+		PatternBank a;
+		a.setTranspose(3, -7);
+		a.setTranspose(40, 12);
+		a.setTranspose(41, 99); // clamped
+		PatternBank b;
+		CHECK(b.load(a.save()));
+		CHECK(b.transpose(3) == -7 && b.transpose(40) == 12 && b.transpose(41) == 12);
+		// Build v1 data by hand: no transpose field.
+		std::vector<int> v1{1};
+		for (int p = 0; p < kPatterns; ++p) {
+			v1.push_back(p == 2 ? 7 : 16);
+			for (int i = 0; i < kSteps; ++i)
+				v1.push_back(Step{uint8_t(i % 13), 1, false, false, Time::Note}.pack());
+		}
+		v1.insert(v1.end(), {0, 0});
+		for (int i = 0; i < kChainMax; ++i)
+			v1.push_back(0);
+		v1.push_back(2);
+		PatternBank c;
+		c.setTranspose(2, 5);
+		CHECK(c.load(v1));
+		CHECK(c.length(2) == 7 && c.transpose(2) == 0 && c.selected() == 2 && c.step(2, 4).note == 4);
+	}
+
+	// 9. Variation: a few steps change, locked lanes never do.
+	{
+		std::mt19937 rng(3);
+		RandomSettings rs;
+		Pattern p;
+		randomize(p, rs, rng);
+		for (int k = 0; k < 200; ++k) {
+			Pattern q = p;
+			vary(q, rs, rng);
+			int changed = 0;
+			for (int i = 0; i < kSteps; ++i)
+				changed += q.steps[size_t(i)].pack() != p.steps[size_t(i)].pack();
+			CHECK(changed <= 4);
+			CHECK(q.transpose == p.transpose && q.length == p.length);
+		}
+		int anyChange = 0;
+		for (int k = 0; k < 50; ++k) {
+			Pattern q = p;
+			vary(q, rs, rng);
+			for (int i = 0; i < kSteps; ++i)
+				anyChange += q.steps[size_t(i)].pack() != p.steps[size_t(i)].pack();
+		}
+		CHECK(anyChange > 50);
+		RandomSettings locked = rs;
+		locked.locks = LockNotes | LockOctaves | LockTime;
+		for (int k = 0; k < 200; ++k) {
+			Pattern q = p;
+			vary(q, locked, rng);
+			for (int i = 0; i < kSteps; ++i) {
+				CHECK(q.steps[size_t(i)].note == p.steps[size_t(i)].note);
+				CHECK(q.steps[size_t(i)].oct == p.steps[size_t(i)].oct);
+				CHECK(q.steps[size_t(i)].time == p.steps[size_t(i)].time);
+			}
+		}
+		locked.locks = LockNotes | LockOctaves | LockTime | LockAccents | LockSlides;
+		Pattern q = p;
+		vary(q, locked, rng);
+		for (int i = 0; i < kSteps; ++i)
+			CHECK(q.steps[size_t(i)].pack() == p.steps[size_t(i)].pack());
+		// Undo covers it.
+		Synth s;
+		s.bank.put(0, p);
+		const auto before = s.bank.save();
+		s.varySelected(rs);
+		CHECK(s.undoSelected());
+		CHECK(s.bank.save() == before);
+	}
+
+	// 10. MIDI export: ties, slides (overlap), accents (velocity), transposes, chain order.
+	{
+		PatternBank b;
+		Pattern p;
+		p.length = 8;
+		p.transpose = 2;
+		auto st = [](int note, int oct, bool acc, bool sl, Time t) { return Step{uint8_t(note), uint8_t(oct), acc, sl, t}; };
+		p.steps[0] = st(0, 1, true, false, Time::Note);   // C, accent, gate half a step
+		p.steps[1] = st(3, 1, false, false, Time::Note);  // D# held through two ties
+		p.steps[2] = st(0, 1, false, false, Time::Tie);
+		p.steps[3] = st(0, 1, false, false, Time::Tie);
+		p.steps[4] = st(7, 2, false, true, Time::Note);   // G up, slides into the next note
+		p.steps[5] = st(10, 0, false, false, Time::Note); // A# down
+		p.steps[6] = st(0, 1, false, false, Time::Rest);
+		p.steps[7] = st(0, 1, false, false, Time::Tie);   // a tie after a rest: nothing
+		b.put(9, p);
+		int total = 0;
+		const auto n = patternNotes(b, {9}, -1, &total);
+		CHECK(total == 8 * kStepTicks);
+		CHECK(n.size() == 4);
+		if (n.size() == 4) {
+			CHECK(n[0].tick == 0 && n[0].length == kGateTicks && n[0].pitch == 36 + 1 && n[0].velocity == 127);
+			CHECK(n[1].tick == kStepTicks && n[1].length == 2 * kStepTicks + kGateTicks && n[1].pitch == 36 + 1 + 3 && n[1].velocity == 90);
+			CHECK(n[2].tick == 4 * kStepTicks && n[2].length == kStepTicks + kSlideOverlap && n[2].pitch == 36 + 1 + 19);
+			CHECK(n[3].tick == 5 * kStepTicks && n[3].pitch == 36 + 1 - 2);
+		}
+		// Chain of the same pattern twice: notes repeat one pattern length later.
+		const auto n2 = patternNotes(b, {9, 9}, 0, &total);
+		CHECK(n2.size() == 8 && total == 16 * kStepTicks);
+		if (n2.size() == 8)
+			CHECK(n2[4].tick == 8 * kStepTicks && n2[4].pitch == n[0].pitch + 1);
+		const auto f = midiFile(n, 8 * kStepTicks, "TRoss 303 I-5B", 128);
+		CHECK(f.size() > 22 && std::memcmp(f.data(), "MThd", 4) == 0 && std::memcmp(f.data() + 14, "MTrk", 4) == 0);
+		const uint32_t trkLen = (uint32_t(f[18]) << 24) | (uint32_t(f[19]) << 16) | (uint32_t(f[20]) << 8) | f[21];
+		CHECK(trkLen + 22 == f.size());
+		CHECK(f[f.size() - 3] == 0xFF && f[f.size() - 2] == 0x2F && f[f.size() - 1] == 0x00);
+		FILE *mf = std::fopen((dir + "/export.mid").c_str(), "wb");
+		if (mf) {
+			std::fwrite(f.data(), 1, f.size(), mf);
+			std::fclose(mf);
+		}
+	}
+
+	// 11. The per-pattern transpose reaches the voice: same line, +12 sounds an octave up.
+	{
+		auto pitchOf = [&](int tr) {
+			Synth s;
+			s.prepare(rate);
+			Pattern p;
+			for (int i = 0; i < kSteps; ++i)
+				p.steps[size_t(i)] = Step{0, 1, false, false, Time::Note};
+			p.transpose = tr;
+			s.bank.put(0, p);
+			s.params.decay = 10;
+			s.params.cutoff = 10;
+			const auto x = run(s, 0.5, 120, rate);
+			// zero crossings in the middle of the first step's note
+			int zc = 0;
+			for (size_t i = size_t(0.01 * rate); i < size_t(0.06 * rate); ++i)
+				zc += (x[i - 1] < 0) != (x[i] < 0);
+			return zc;
+		};
+		const int a = pitchOf(0), b2 = pitchOf(12);
+		CHECK(b2 > a * 1.6 && b2 < a * 2.4);
 	}
 
 	std::printf(failures ? "%d FAILED\n" : "all tests passed\n", failures);

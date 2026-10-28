@@ -132,6 +132,20 @@ wire(lprop, 0, lobs, 0)
 wire(lobs, 0, ptrans, 0)
 wire(ptrans, 0, eng, 0)
 
+# Live's tempo, written into exported MIDI files: live_set tempo -> "tempo <bpm>".
+tpath_msg = msg("path live_set", (440, 50, 80, 22))
+tpath = obj("live.path", (440, 80, 80, 22), 1, 3, ["", "", ""])
+tprop = msg("property tempo", (540, 80, 90, 22))
+tobs = obj("live.observer", (440, 110, 100, 22), 2, 2, ["", ""])
+ptempo = obj("prepend tempo", (440, 140, 90, 22))
+wire(trig, 1, tpath_msg, 0)
+wire(trig, 1, tprop, 0)
+wire(tpath_msg, 0, tpath, 0)
+wire(tpath, 0, tobs, 1)
+wire(tprop, 0, tobs, 0)
+wire(tobs, 0, ptempo, 0)
+wire(ptempo, 0, eng, 0)
+
 ctl = []  # (box id, message) pairs: each control's value goes to the engine as "<message> <value>"
           # and to the panel as "ctl <message> <value>" so it can draw the knob or switch.
 

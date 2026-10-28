@@ -35,12 +35,14 @@ global.Task = function () { this.schedule = () => {}; };
 global.max = { launchbrowser() {} };
 eval(src + `
 ;(function(){
-  pattern(0, 16, 0x110|64, 0x110, 0x11c|128, 0x210, 0x113|64, 0x010, 0x117|128, 0x11a, 0x110|64, 0x010, 0x125, 0x113|128, 0x110|64, 0x207, 0x11a, 0x110);
+  pattern(0, 16, 3, 0x110|64, 0x110, 0x11c|128, 0x210, 0x113|64, 0x010, 0x117|128, 0x11a, 0x110|64, 0x010, 0x125, 0x113|128, 0x110|64, 0x207, 0x11a, 0x110);
   ctl('cutoff', 3.2); ctl('resonance', 8.6); ctl('envmod', 7); ctl('decay', 4.2); ctl('accent', 7.5); ctl('volume', 7);
   ctl('rlock', 'notes', 1);
-  playstep(6); playing(0);
+  playstep(6); playing(0); chain(1, 3, 0, 0, 1);
   if ('${mode}'==='smiley') smileyUntil = Date.now() + 100000;
   if ('${mode}'==='about') showAbout = 1;
+  if ('${mode}'==='pressed') { pressed = {x: 650, y: 108, w: 94, h: 14, since: 0}; smileyText='VARIED'; smileyUntil = Date.now() + 100000; }
+  if ('${mode}'==='smiley') smileyText = 'NEW';
   paint();
 })();`);
 console.log(JSON.stringify(ops));

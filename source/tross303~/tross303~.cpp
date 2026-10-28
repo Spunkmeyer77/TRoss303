@@ -9,9 +9,12 @@
 #include "ext_obex.h"
 #include "z_dsp.h"
 
+#include "MidiExport.h"
 #include "Synth.h"
 
+#include <cstdio>
 #include <cstring>
+#include <string>
 #include <vector>
 
 struct t_tross303 {
@@ -24,6 +27,7 @@ struct t_tross303 {
 	t_clock *pollClock;
 	t_clock *storeClock;
 	int lastStep, lastPlaying;
+	double tempo;
 };
 
 static t_class *s_class = nullptr;
@@ -33,12 +37,13 @@ static t_class *s_class = nullptr;
 static void outPattern(t_tross303 *x)
 {
 	const int p = x->synth->bank.selected();
-	t_atom av[2 + tross::kSteps];
+	t_atom av[3 + tross::kSteps];
 	atom_setlong(av, p);
 	atom_setlong(av + 1, x->synth->bank.length(p));
+	atom_setlong(av + 2, x->synth->bank.transpose(p));
 	for (int i = 0; i < tross::kSteps; ++i)
-		atom_setlong(av + 2 + i, x->synth->bank.step(p, i).pack());
-	outlet_anything(x->outDisplay, gensym("pattern"), 2 + tross::kSteps, av);
+		atom_setlong(av + 3 + i, x->synth->bank.step(p, i).pack());
+	outlet_anything(x->outDisplay, gensym("pattern"), 3 + tross::kSteps, av);
 }
 
 static void outChain(t_tross303 *x)
@@ -92,6 +97,12 @@ static void pollTick(t_tross303 *x)
 		x->lastPlaying = playing;
 		atom_setlong(&a, playing);
 		outlet_anything(x->outDisplay, gensym("playing"), 1, &a);
+		// While a chain plays, the editor follows the pattern that is sounding.
+		auto &b = x->synth->bank;
+		if (step >= 0 && b.chainOn() && b.chainLength() > 0 && b.selected() != playing) {
+			b.select(playing);
+			outPattern(x);
+		}
 	}
 	if (step != x->lastStep) {
 		x->lastStep = step;
@@ -170,6 +181,75 @@ static void m_length(t_tross303 *x, long n)
 	x->synth->bank.setLength(p, int(n));
 	edited(x);
 }
+
+static void m_vary(t_tross303 *x)
+{
+	x->synth->varySelected(*x->rnd);
+	edited(x);
+}
+
+// ptranspose <semitones>: the selected pattern's own transpose (dragged on the LCD).
+static void m_ptranspose(t_tross303 *x, long v)
+{
+	x->synth->setSelectedTranspose(int(v));
+	edited(x);
+}
+static void m_ptransposeend(t_tross303 *x) { x->synth->endTransposeDrag(); }
+
+static void m_tempo(t_tross303 *x, double bpm) { x->tempo = bpm; }
+
+// ---- MIDI export ------------------------------------------------------------------------
+
+static std::string patName(int p)
+{
+	static const char *groups[] = {"I", "II", "III", "IV"};
+	char buf[16];
+	std::snprintf(buf, sizeof buf, "%s-%d%c", groups[(p / 16) & 3], (p % 16) / 2 + 1, (p % 2) ? 'B' : 'A');
+	return buf;
+}
+
+static void exportNow(t_tross303 *x, t_symbol *, short, t_atom *)
+{
+	const std::vector<int> list = x->synth->exportList();
+	const bool isChain = list.size() > 1 || (x->synth->bank.chainOn() && x->synth->bank.chainLength() > 0);
+	std::string label = isChain ? "chain" : patName(list.front());
+
+	char name[MAX_FILENAME_CHARS];
+	std::snprintf(name, sizeof name, "TRoss303 %s.mid", label.c_str());
+	short path = 0;
+	t_fourcc type = 0;
+	saveas_promptset("Export TRoss 303 MIDI");
+	if (saveasdialog_extended(name, &path, &type, nullptr, 0) != 0)
+		return; // cancelled
+	std::string fname = name;
+	if (fname.size() < 4 || (fname.compare(fname.size() - 4, 4, ".mid") != 0 && fname.compare(fname.size() - 4, 4, ".MID") != 0))
+		fname += ".mid";
+
+	char full[MAX_PATH_CHARS], native[MAX_PATH_CHARS];
+	if (path_toabsolutesystempath(path, fname.c_str(), full) != MAX_ERR_NONE) {
+		object_error((t_object *)x, "export: can't resolve the file path");
+		return;
+	}
+	path_nameconform(full, native, PATH_STYLE_NATIVE, PATH_TYPE_BOOT);
+
+	int total = 0;
+	const auto notes = tross::patternNotes(x->synth->bank, list, int(x->synth->params.transpose.load()), &total);
+	const auto bytes = tross::midiFile(notes, total, "TRoss 303 " + label, x->tempo);
+	FILE *f = std::fopen(native, "wb");
+	if (!f) {
+		object_error((t_object *)x, "export: can't write %s", native);
+		return;
+	}
+	std::fwrite(bytes.data(), 1, bytes.size(), f);
+	std::fclose(f);
+	object_post((t_object *)x, "exported %s", native);
+	t_atom a;
+	atom_setsym(&a, gensym(label.c_str()));
+	outlet_anything(x->outDisplay, gensym("exported"), 1, &a);
+}
+
+// exportmidi: the selected pattern, or the chain when it's on, to a .mid file (save dialog).
+static void m_exportmidi(t_tross303 *x) { defer_low(x, (method)exportNow, nullptr, 0, nullptr); }
 
 static void m_random(t_tross303 *x)
 {
@@ -292,6 +372,7 @@ static void *tross_new(t_symbol *, long, t_atom *)
 	x->buf = new std::vector<float>(4096, 0.0f);
 	x->lastStep = -2;
 	x->lastPlaying = -1;
+	x->tempo = 0;
 	x->pollClock = clock_new(x, (method)pollTick);
 	x->storeClock = clock_new(x, (method)storeTick);
 	clock_fdelay(x->pollClock, 100);
@@ -349,6 +430,11 @@ void ext_main(void *)
 	class_addmethod(c, (method)m_setstep, "setstep", A_GIMME, 0);
 	class_addmethod(c, (method)m_length, "length", A_LONG, 0);
 	class_addmethod(c, (method)m_random, "random", 0);
+	class_addmethod(c, (method)m_vary, "vary", 0);
+	class_addmethod(c, (method)m_ptranspose, "ptranspose", A_LONG, 0);
+	class_addmethod(c, (method)m_ptransposeend, "ptransposeend", 0);
+	class_addmethod(c, (method)m_tempo, "tempo", A_FLOAT, 0);
+	class_addmethod(c, (method)m_exportmidi, "exportmidi", 0);
 	class_addmethod(c, (method)m_undo, "undo", 0);
 	class_addmethod(c, (method)m_copy, "copy", 0);
 	class_addmethod(c, (method)m_paste, "paste", 0);

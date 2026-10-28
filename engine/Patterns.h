@@ -12,6 +12,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <cstdlib>
 #include <random>
 #include <vector>
 
@@ -58,9 +59,12 @@ struct Step {
 	int semis() const { return int(note) + (int(oct) - 1) * 12; }
 };
 
+constexpr int kTransposeRange = 12; // per-pattern transpose, semitones either way
+
 struct Pattern {
 	std::array<Step, kSteps> steps{};
 	int length = kSteps;
+	int transpose = 0;
 };
 
 enum Lock : unsigned { LockNotes = 1, LockOctaves = 2, LockAccents = 4, LockSlides = 8, LockTime = 16 };
@@ -113,6 +117,11 @@ public:
 	Step step(int p, int i) const { return Step::unpack(m_steps[idx(p, i)].load(std::memory_order_relaxed)); }
 	void setStep(int p, int i, const Step &s) { m_steps[idx(p, i)].store(s.pack(), std::memory_order_relaxed); }
 	int length(int p) const { return m_length[clampP(p)].load(std::memory_order_relaxed); }
+	int transpose(int p) const { return m_transpose[clampP(p)].load(std::memory_order_relaxed); }
+	void setTranspose(int p, int t)
+	{
+		m_transpose[clampP(p)].store(t < -kTransposeRange ? -kTransposeRange : t > kTransposeRange ? kTransposeRange : t);
+	}
 	void setLength(int p, int n) { m_length[clampP(p)].store(n < 1 ? 1 : n > kSteps ? kSteps : n); }
 
 	Pattern get(int p) const
@@ -121,6 +130,7 @@ public:
 		for (int i = 0; i < kSteps; ++i)
 			out.steps[size_t(i)] = step(p, i);
 		out.length = length(p);
+		out.transpose = transpose(p);
 		return out;
 	}
 	void put(int p, const Pattern &pat)
@@ -128,6 +138,7 @@ public:
 		for (int i = 0; i < kSteps; ++i)
 			setStep(p, i, pat.steps[size_t(i)]);
 		setLength(p, pat.length);
+		setTranspose(p, pat.transpose);
 	}
 	void clear(int p) { put(p, Pattern{}); }
 
@@ -149,15 +160,17 @@ public:
 		return true;
 	}
 
-	// Serialises the whole bank for the Live set: version, 64 x (length, 16 steps), chain
-	// on, chain length, 16 chain slots, selected pattern.
+	// Serialises the whole bank for the Live set: version, 64 x (length, transpose, 16 steps),
+	// chain on, chain length, 16 chain slots, selected pattern. Version 1 (TRoss 303 1.0-1.1)
+	// had no transpose and still loads.
 	std::vector<int> save() const
 	{
 		std::vector<int> v;
-		v.reserve(1 + kPatterns * (1 + kSteps) + 2 + kChainMax + 1);
+		v.reserve(1 + kPatterns * (2 + kSteps) + 2 + kChainMax + 1);
 		v.push_back(kVersion);
 		for (int p = 0; p < kPatterns; ++p) {
 			v.push_back(length(p));
+			v.push_back(transpose(p));
 			for (int i = 0; i < kSteps; ++i)
 				v.push_back(m_steps[idx(p, i)].load());
 		}
@@ -170,12 +183,16 @@ public:
 	}
 	bool load(const std::vector<int> &v)
 	{
-		const size_t need = 1 + kPatterns * (1 + kSteps) + 2 + kChainMax + 1;
-		if (v.size() < need || v[0] != kVersion)
+		if (v.empty() || (v[0] != 1 && v[0] != kVersion))
+			return false;
+		const int perPattern = v[0] == 1 ? 1 + kSteps : 2 + kSteps;
+		const size_t need = 1 + size_t(kPatterns * perPattern) + 2 + kChainMax + 1;
+		if (v.size() < need)
 			return false;
 		size_t k = 1;
 		for (int p = 0; p < kPatterns; ++p) {
 			setLength(p, v[k++]);
+			setTranspose(p, v[0] == 1 ? 0 : v[k++]);
 			for (int i = 0; i < kSteps; ++i)
 				setStep(p, i, Step::unpack(uint16_t(v[k++])));
 		}
@@ -189,7 +206,7 @@ public:
 	}
 
 private:
-	static constexpr int kVersion = 1;
+	static constexpr int kVersion = 2;
 	static int clampP(int p) { return p < 0 ? 0 : p >= kPatterns ? kPatterns - 1 : p; }
 	static size_t idx(int p, int i)
 	{
@@ -198,6 +215,7 @@ private:
 
 	std::array<std::atomic<uint16_t>, kPatterns * kSteps> m_steps{};
 	std::array<std::atomic<int>, kPatterns> m_length{};
+	std::array<std::atomic<int>, kPatterns> m_transpose{};
 	std::array<std::atomic<int>, kChainMax> m_chain{};
 	std::atomic<int> m_chainLen{0};
 	std::atomic<bool> m_chainOn{false};
@@ -251,6 +269,74 @@ inline void randomize(Pattern &pat, const RandomSettings &rs, std::mt19937 &rng)
 		if (!(rs.locks & LockSlides))
 			s.slide = u(rng) < rs.slide;
 		prevPlays = s.time != Time::Rest;
+	}
+}
+
+
+// A small variation of `pat` (SHIFT + RANDOM): 2 to 4 steps change one thing each (a note
+// moves within the scale, an octave flips, an accent or slide toggles, a step plays or
+// rests), keeping the locked lanes. The line stays recognisably the same.
+inline void vary(Pattern &pat, const RandomSettings &rs, std::mt19937 &rng)
+{
+	std::uniform_real_distribution<double> u(0.0, 1.0);
+	const auto &sc = scales()[size_t(rs.scale < 0 ? 0 : rs.scale >= int(scales().size()) ? 0 : rs.scale)];
+	const int root = ((rs.root % 12) + 12) % 12;
+	const int len = pat.length < 1 ? 1 : pat.length > kSteps ? kSteps : pat.length;
+
+	std::vector<int> kinds;
+	if (!(rs.locks & LockNotes))
+		kinds.insert(kinds.end(), {0, 0, 0}); // note changes are the most musical: weight them
+	if (!(rs.locks & LockOctaves))
+		kinds.push_back(1);
+	if (!(rs.locks & LockAccents))
+		kinds.insert(kinds.end(), {2, 2});
+	if (!(rs.locks & LockSlides))
+		kinds.push_back(3);
+	if (!(rs.locks & LockTime))
+		kinds.push_back(4);
+	if (kinds.empty())
+		return;
+
+	const int changes = std::uniform_int_distribution<int>(2, 4)(rng);
+	for (int c = 0; c < changes; ++c) {
+		const int kind = kinds[size_t(std::uniform_int_distribution<int>(0, int(kinds.size()) - 1)(rng))];
+		// Prefer steps that play (so the change is heard), except for rhythm changes.
+		int i = std::uniform_int_distribution<int>(0, len - 1)(rng);
+		for (int tries = 0; tries < 8 && kind != 4 && pat.steps[size_t(i)].time == Time::Rest; ++tries)
+			i = std::uniform_int_distribution<int>(0, len - 1)(rng);
+		Step &s = pat.steps[size_t(i)];
+		switch (kind) {
+		case 0: { // another note of the scale, nearby
+			int best = s.note, bestD = 99;
+			for (int tries = 0; tries < 12; ++tries) {
+				const int deg = sc.degrees[size_t(std::uniform_int_distribution<int>(0, int(sc.degrees.size()) - 1)(rng))];
+				int n = (root + deg) % 12;
+				if (s.note == 12 && n == 0)
+					n = 12;
+				const int d = std::abs(n - int(s.note));
+				if (n != int(s.note) && d < bestD) {
+					best = n;
+					bestD = d;
+				}
+				if (bestD <= 5 && u(rng) < 0.5)
+					break;
+			}
+			s.note = uint8_t(best);
+			break;
+		}
+		case 1:
+			s.oct = s.oct == 1 ? (u(rng) < 0.5 ? 2 : 0) : 1;
+			break;
+		case 2:
+			s.accent = !s.accent;
+			break;
+		case 3:
+			s.slide = !s.slide;
+			break;
+		case 4:
+			s.time = s.time == Time::Rest ? Time::Note : (u(rng) < 0.7 ? Time::Rest : Time::Tie);
+			break;
+		}
 	}
 }
 

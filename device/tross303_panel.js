@@ -6,9 +6,11 @@
 // jsui (ES5), drawn in the background layer. The automatable controls are live.* objects laid
 // invisibly over the knobs and switches drawn here; their values come in as "ctl <name> <v>".
 //
-// From tross303~:  pattern idx len s0..s15 | playstep n | playing idx | chain on len e...
-// To tross303~:    select idx | setstep i field v | length n | random | undo | copy | paste
-//                  clear | chain 0/1 | chainadd idx | chainclear
+// From tross303~:  pattern idx len transpose s0..s15 | playstep n | playing idx
+//                  chain on len e... | exported name
+// To tross303~:    select idx | setstep i field v | length n | random | vary | undo | copy
+//                  paste | clear | chain 0/1 | chainadd idx | chainclear | ptranspose n
+//                  ptransposeend | exportmidi
 
 autowatch = 1;
 inlets = 1;
@@ -18,7 +20,7 @@ mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
-var VERSION = "1.1.1";
+var VERSION = "1.2.0";
 var GUMROAD = "https://ticcoross.gumroad.com/";
 var EMAIL = "ticcoross@gmail.com";
 
@@ -36,12 +38,15 @@ var C = {
 
 // ---- State --------------------------------------------------------------------------------
 
-var sel = 0, len = 16, steps = [];
+var sel = 0, len = 16, ptr = 0, steps = [];
 for (var i0 = 0; i0 < 16; i0++) steps.push(0x10);
 var playStep = -1, playingIdx = 0;
 var chainOn = 0, chainList = [], chainEdit = 0;
 var showAbout = 0, drag = null;
-var smileyUntil = 0, msgText = "", msgUntil = 0;
+var smileyUntil = 0, smileyText = "", msgText = "", msgUntil = 0;
+var pressed = null;   // the key being pressed, drawn pushed in: {x, y, w, h, since}
+var lcdDrag = null;   // dragging on the LCD sets the pattern's own transpose
+var exportFlashUntil = 0;
 
 // Values of the live.* controls, for drawing them.
 var ctlv = {
@@ -71,10 +76,11 @@ function now() { return new Date().getTime(); }
 
 function pattern() {
 	var a = arrayfromargs(arguments);
-	if (a.length < 18) return;
+	if (a.length < 19) return;
 	sel = a[0];
 	len = a[1];
-	for (var i = 0; i < 16; i++) steps[i] = a[2 + i];
+	ptr = a[2];
+	for (var i = 0; i < 16; i++) steps[i] = a[3 + i];
 	mgraphics.redraw();
 }
 function playstep(n) { playStep = n; mgraphics.redraw(); }
@@ -85,6 +91,11 @@ function chain() {
 	chainList = [];
 	for (var i = 0; i < (a[1] || 0) && 2 + i < a.length; i++) chainList.push(a[2 + i]);
 	mgraphics.redraw();
+}
+// exported <name>: a MIDI file was written
+function exported(name) {
+	exportFlashUntil = now() + 1200;
+	say("MIDI SAVED");
 }
 // ctl <name> <value> (or ctl rlock <lane> <value> from the lock toggles)
 function ctl() {
@@ -229,8 +240,12 @@ var ROWS = [
 ];
 var LED_Y = 78;
 
+// Clickable areas. act(shift, option) runs on mouse down; the visual rect (vx..) is the key
+// drawn pushed in while it's held (pass none for areas that aren't keys).
 var buttons = [];
-function addButton(x, y, w, h, act) { buttons.push({ x: x, y: y, w: w, h: h, act: act }); }
+function addButton(x, y, w, h, act, vx, vy, vw, vh) {
+	buttons.push({ x: x, y: y, w: w, h: h, act: act, vis: vx === undefined ? null : [vx, vy, vw, vh] });
+}
 
 // ---- Paint --------------------------------------------------------------------------------
 
@@ -276,6 +291,7 @@ function paint() {
 	drawPatternBlock();
 	drawSteps();
 	drawRandomBlock();
+	drawPressed();
 	if (showAbout) drawAbout();
 }
 
@@ -287,29 +303,37 @@ function drawPatternBlock() {
 		x = 500 + i * 30;
 		key(x, 5, 26, 10, C.btn, GROUPS[i], C.btnink);
 		led(x + 13, 19, g === i, C.orange, 1.8);
-		(function (gi) { addButton(x, 4, 26, 18, function () { send("select", idxOf(gi, patOf(sel), secOf(sel))); }); })(i);
+		(function (gi, kx) {
+			addButton(kx, 4, 26, 18, function () { send("select", idxOf(gi, patOf(sel), secOf(sel))); }, kx, 5, 26, 10);
+		})(i, x);
 	}
 	for (i = 0; i < 2; i++) {
 		x = 628 + i * 26;
 		key(x, 5, 22, 10, C.btn, i ? "B" : "A", C.btnink);
 		led(x + 11, 19, s === i, C.orange, 1.8);
-		(function (si) {
-			addButton(x, 4, 22, 18, function () {
+		(function (si, kx) {
+			addButton(kx, 4, 22, 18, function () {
 				if (chainEdit) addToChain(idxOf(grpOf(sel), patOf(sel), si));
 				send("select", idxOf(grpOf(sel), patOf(sel), si));
-			});
-		})(i);
+			}, kx, 5, 22, 10);
+		})(i, x);
 	}
+	// Red LEDs: the pattern that is playing (when it is in the group and section shown); a
+	// pattern selected to play next blinks. Stopped: the selected pattern.
+	var running = playStep >= 0;
+	var playHere = running && grpOf(playingIdx) === g && secOf(playingIdx) === s ? patOf(playingIdx) : -1;
+	var blinkOn = (playStep % 4) < 2;
 	for (i = 0; i < 8; i++) {
 		x = 462 + i * 27;
 		key(x, 25, 23, 13, C.white, String(i + 1), [20, 20, 20]);
-		led(x + 11.5, 43, p === i, C.red, 1.8);
-		(function (pi) {
-			addButton(x, 24, 23, 22, function () {
+		var lit = running ? (i === playHere || (i === p && sel !== playingIdx && blinkOn)) : i === p;
+		led(x + 11.5, 43, lit, C.red, 1.8);
+		(function (pi, kx) {
+			addButton(kx, 24, 23, 22, function () {
 				if (chainEdit) addToChain(idxOf(grpOf(sel), pi, secOf(sel)));
 				send("select", idxOf(grpOf(sel), pi, secOf(sel)));
-			});
-		})(i);
+			}, kx, 25, 23, 13);
+		})(i, x);
 	}
 	var tools = [
 		["COPY", C.btn, function () { send("copy"); say("COPIED"); }],
@@ -328,43 +352,77 @@ function drawPatternBlock() {
 		key(x, 51, 44, 12, tools[i][1], tools[i][0], gold ? C.goldink : C.btnink);
 		if (i === 4) led(x + 39, 57, chainOn, C.orange, 1.6);
 		if (i === 5) led(x + 39, 57, chainEdit, C.orange, 1.6);
-		addButton(x, 50, 44, 15, tools[i][2]);
+		addButton(x, 50, 44, 15, tools[i][2], x, 51, 44, 12);
 	}
 	drawLcd();
+	// Touching the LCD shows the smiley; dragging on it up/down sets the pattern's transpose.
+	addButton(LCD.x0, LCD.y0, LCD.x1 - LCD.x0, LCD.y1 - LCD.y0, function () {
+		showSmiley("");
+		lcdDrag = { y: lastMouse[1], start: ptr, last: ptr };
+	});
 }
 
 // A 12x12 dot smiley for the LCD.
 var SMILEY = ["....XXXX....", "..XX....XX..", ".X........X.", ".X..X..X..X.", "X...X..X...X", "X..........X",
 	"X.X......X.X", "X..X....X..X", ".X..XXXX..X.", ".X........X.", "..XX....XX..", "....XXXX...."];
 
+var LCD = { x0: 682, y0: 4, x1: 747, y1: 47 };
+
 function drawLcd() {
-	var x0 = 684, y0 = 4, x1 = W - OX - 6, y1 = 32;
-	rgb([40, 52, 30]); rrect(x0, y0, x1 - x0, y1 - y0, 2);
-	rgb(C.lcd); rrect(x0 + 2, y0 + 2, x1 - x0 - 4, y1 - y0 - 4, 1.5);
-	rgb([255, 255, 255], 0.08); frect(x0 + 3, y0 + 3, x1 - x0 - 6, 5);
+	var x0 = LCD.x0, y0 = LCD.y0, x1 = LCD.x1, y1 = LCD.y1;
+	rgb([40, 52, 30]); rrect(x0, y0, x1 - x0, y1 - y0, 2.2);
+	rgb(C.lcd); rrect(x0 + 2, y0 + 2, x1 - x0 - 4, y1 - y0 - 4, 1.6);
+	rgb([255, 255, 255], 0.08); frect(x0 + 3, y0 + 3, x1 - x0 - 6, 6);
 	rgb(C.lcdink);
 	var t = now();
 	if (t < smileyUntil) {
-		var cs = 1.75, sx = 689, sy = 7.5, r, c;
+		var cs = 2.6, sx = x0 + 4, sy = y0 + 5.5, r, c;
 		for (r = 0; r < 12; r++)
 			for (c = 0; c < 12; c++) {
 				if (SMILEY[r].charAt(c) === "X") rgb(C.lcdink);
 				else rgb([143, 168, 105]);
-				frect(sx + c * cs, sy + r * cs, cs - 0.35, cs - 0.35);
+				frect(sx + c * cs, sy + r * cs, cs - 0.45, cs - 0.45);
 			}
 		rgb(C.lcdink);
-		text("ACID!", 712, 13.5, 7.2, true, "l");
-		text("NEW " + nameOf(sel), 712, 24, 5, false, "l");
+		text("ACID!", x0 + 37, y0 + 13, 8.5, true, "l");
+		text(smileyText || nameOf(sel), x0 + 37, y0 + 26, 5.6, true, "l");
+		if (smileyText) text(nameOf(sel), x0 + 37, y0 + 35, 5.6, false, "l");
 		return;
 	}
-	text(nameOf(sel), 690, 13, 8, true, "l");
-	text("L" + len, x1 - 6, 13, 5.4, true, "r");
+	text(nameOf(sel), x0 + 5, y0 + 11, 11.5, true, "l");
+	text("L" + len, x1 - 5, y0 + 8.5, 6.2, true, "r");
+	text("T" + (ptr > 0 ? "+" + ptr : ptr), x1 - 5, y0 + 17, 6.2, true, "r");
+	rgb(C.lcdink, 0.35); frect(x0 + 5, y0 + 21.5, x1 - x0 - 10, 0.6);
+	rgb(C.lcdink);
 	var line2;
-	if (t < msgUntil) line2 = msgText;
+	if (lcdDrag) line2 = "TRANSP " + (ptr > 0 ? "+" + ptr : ptr);
+	else if (t < msgUntil) line2 = msgText;
 	else if (chainEdit) line2 = "CHAIN " + chainList.length + (chainList.length ? " >" + nameOf(chainList[chainList.length - 1]) : "");
 	else if (playStep >= 0) line2 = "PLAY " + nameOf(playingIdx);
 	else line2 = chainOn && chainList.length ? "CHAIN " + chainList.length : "STOP";
-	text(line2, 690, 24, 5.2, false, "l");
+	text(line2, x0 + 5, y0 + 28.5, 6.6, true, "l");
+	var line3 = chainOn && chainList.length && !chainEdit ? "CHAIN ON" : "";
+	if (playStep >= 0 && sel !== playingIdx && !lcdDrag) line3 = "NEXT " + nameOf(sel);
+	text(line3, x0 + 5, y0 + 36.5, 5.4, false, "l");
+}
+
+function showSmiley(label) {
+	smileyText = label;
+	smileyUntil = now() + 1500;
+	mgraphics.redraw();
+	later(1550);
+}
+
+// The held key, drawn pushed in: darker, with an inner shadow along the top edge.
+function drawPressed() {
+	if (!pressed) return;
+	var x = pressed.x, y = pressed.y, w = pressed.w, h = pressed.h;
+	rgb([0, 0, 0], 0.38); rrect(x, y, w, h, 2);
+	rgb([0, 0, 0], 0.35); frect(x + 1.5, y + 0.6, w - 3, 1.4);
+	rgb([255, 225, 150], 0.5);
+	mgraphics.set_line_width(0.8);
+	mgraphics.rectangle_rounded(x + 0.4, y + 0.4, w - 0.8, h - 0.8, 4, 4);
+	mgraphics.stroke();
 }
 
 function drawSteps() {
@@ -400,13 +458,17 @@ function drawRandomBlock() {
 	}
 	rgb(C.lowink); text("SCALE", 650, 79, 5, true, "l"); text("ROOT", 708, 79, 5, true, "l");
 	rgb([20, 10, 8]); rrect(650, 85, 54, 12, 1.5); rrect(708, 85, 30, 12, 1.5); // the menus sit on these
-	key(650, 108, W - OX - 8 - 650, 14, C.gold, "RANDOM", C.goldink, 7);
-	addButton(650, 107, W - OX - 8 - 650, 16, function () {
-		send("random");
-		smileyUntil = now() + 1500;
-		mgraphics.redraw();
-		later(1550);
-	});
+	var rw = W - OX - 8 - 650;
+	key(650, 108, rw, 14, C.gold, "RANDOM", C.goldink, 7);
+	rgb(C.lowink); text("SHIFT + RANDOM = VARIATION", 650 + rw / 2, 128, 4.6, false);
+	addButton(650, 107, rw, 16, function (shift) {
+		if (shift) { send("vary"); showSmiley("VARIED"); }
+		else { send("random"); showSmiley("NEW"); }
+	}, 650, 108, rw, 14);
+	// MIDI export: the selected pattern, or the chain when it's on.
+	key(680, 145, 66, 12, C.btn, "MIDI EXPORT", C.btnink, 5.6);
+	led(680 + 61, 151, now() < exportFlashUntil, C.orange, 1.6);
+	addButton(680, 144, 66, 14, function () { send("exportmidi"); }, 680, 145, 66, 12);
 	rgb(C.lowink); text("LOCK", 462, 140, 5.2, true, "l");
 	for (k = 0; k < LOCKS.length; k++) {
 		x = 462 + k * 42;
@@ -481,9 +543,20 @@ function onclick(x, y, but, cmd, shift, capslock, option, ctrl) {
 		mgraphics.redraw();
 		return;
 	}
+	lastMouse = [x, y];
 	for (i = 0; i < buttons.length; i++) {
 		var b = buttons[i];
-		if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) { b.act(); return; }
+		if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) {
+			if (b.vis) {
+				pressed = { x: b.vis[0], y: b.vis[1], w: b.vis[2], h: b.vis[3], since: now() };
+				mgraphics.redraw();
+				// Safety net: if the mouse-up never arrives (a dialog took it), let the key up.
+				var p0 = pressed, tsk = new Task(function () { if (pressed === p0) { pressed = null; mgraphics.redraw(); } }, this);
+				tsk.schedule(700);
+			}
+			b.act(shift, option);
+			return;
+		}
 	}
 	var h = hitStep(x, y);
 	if (!h || h.i >= len) return;
@@ -510,9 +583,37 @@ function onclick(x, y, but, cmd, shift, capslock, option, ctrl) {
 }
 onclick.local = 1;
 
+var lastMouse = [0, 0];
+
+function release() {
+	if (!pressed) return;
+	var held = now() - pressed.since;
+	if (held >= 120) { pressed = null; mgraphics.redraw(); return; }
+	var tsk = new Task(function () { pressed = null; mgraphics.redraw(); }, this);
+	tsk.schedule(130 - held); // a quick click still shows the key going down
+}
+
 function ondrag(x, y, but, cmd, shift, capslock, option, ctrl) {
+	if (lcdDrag) {
+		if (!but) {
+			if (lcdDrag.last !== lcdDrag.start) send("ptransposeend");
+			lcdDrag = null;
+			mgraphics.redraw();
+			return;
+		}
+		var tr = lcdDrag.start + Math.round((lcdDrag.y - y) / 5);
+		tr = tr < -12 ? -12 : tr > 12 ? 12 : tr;
+		if (tr !== lcdDrag.last) {
+			lcdDrag.last = tr;
+			ptr = tr;
+			smileyUntil = 0; // show the value while dragging
+			send("ptranspose", tr);
+			mgraphics.redraw();
+		}
+		return;
+	}
+	if (!but) { release(); drag = null; return; }
 	if (!drag) return;
-	if (!but) { drag = null; return; }
 	var n = drag.n + Math.round((drag.y - y) / 6);
 	n = n < 0 ? 0 : n > 12 ? 12 : n;
 	if (n !== drag.last) {

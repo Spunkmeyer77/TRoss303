@@ -31,7 +31,12 @@ macOS (`tross303~.mxo`, Apple Silicon + Intel) and Windows (`tross303~.mxe64`), 
 - **Chain**: up to 16 patterns played in order.
 - **Random pattern creator**: scale and root, density, accent, slide and octave amounts, and locks
   per lane (re-roll only the rhythm, only the accents…).
+- **Variation**: SHIFT + RANDOM changes a few steps of the current line.
+- **Per-pattern transpose** (drag on the LCD), on top of the global TRANSP.
+- **MIDI export** of a pattern or the whole chain to a .mid file.
 - **MIDI**: notes play the voice too (velocity ≥ 100 = accent, overlapping notes slide).
+
+See [CHANGELOG.md](CHANGELOG.md) for the version history.
 
 ## Building
 
@@ -70,9 +75,9 @@ and publishes (or updates) the release for the version in `VERSION`.
 
 Knobs (0–10): `tuning cutoff resonance envmod decay accent volume`; `wave 0|1`, `cutmax <Hz>`,
 `transpose <st>`, `seq 0|1`. MIDI: `note <pitch> <vel>`, `flush`. Patterns: `select <0-63>`,
-`setstep <i> note|oct|acc|slide|time <v>`, `length <n>`, `random`, `undo`, `copy`, `paste`,
+`setstep <i> note|oct|acc|slide|time <v>`, `length <n>`, `ptranspose <st>`, `ptransposeend`, `random`, `vary`, `exportmidi`, `undo`, `copy`, `paste`,
 `clear`, `chain 0|1`, `chainadd <idx>`, `chainclear`. Random settings: `rscale`, `rroot`,
-`rdensity rslide raccent rspread` (0–100), `rlock <lane> 0|1`. State: `bank ...`, `refresh`.
+`rdensity rslide raccent rspread` (0–100), `rlock <lane> 0|1`. State: `bank ...`, `refresh`, `tempo <bpm>`, `transport 0|1`.
 
 ## License
 
