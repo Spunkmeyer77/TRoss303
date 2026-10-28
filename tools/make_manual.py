@@ -14,7 +14,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import (Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
                                 TableStyle)
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 ROOT = Path(__file__).resolve().parent.parent
 RED = colors.HexColor("#c0261a")
 DARK = colors.HexColor("#1c1c1f")
@@ -109,7 +109,8 @@ def build(out):
         ["WAVEFORM", "Saw or square oscillator: click the switch."],
         ["CUT MAX", "(Readout at the top.) How high the CUT OFF knob reaches at full (1200-3000 Hz). Real units differ: 2300 Hz is a "
                     "typical one, lower is darker."],
-        ["TRANSP", "Drag the readout up or down. Transposes the sequencer's notes, in semitones (-24 to +24)."],
+        ["TRANSP", "The <b>selected pattern's own transpose</b>, -24 to +24 semitones. Drag the readout up or down; "
+                   "double-click it to reset to 0. Each of the 64 patterns keeps its own value (see section 5)."],
         ["SEQ", "Click the SEQ LED to turn the built-in sequencer on or off. With it off, the device is a MIDI-played 303 voice."],
     ], [30 * mm, 145 * mm]))
     s.append(Paragraph("Every control is a Live parameter: you can automate it, map it to MIDI or a Push, and it's "
@@ -166,11 +167,16 @@ def build(out):
         ["CHAIN", "Chain information while chaining."],
     ], [38 * mm, 137 * mm]))
     s.append(Paragraph(
-        "<b>Touch the LCD</b> (click it) and the acid smiley appears. <b>Click and drag up or down on the LCD</b> to "
-        "set the selected pattern's own <b>transpose</b>, -12 to +12 semitones (shown as T+3, T-5&hellip;). Each "
-        "pattern keeps its own transpose, so a chain can move a line around without rewriting it. It adds to the "
-        "global TRANSP control, is saved with the pattern, is copied and pasted with it, and UNDO takes back a whole "
-        "drag.", P))
+        "<b>Touch the LCD</b> (click it) and the acid smiley appears.", P))
+    s.append(Paragraph("Per-pattern transpose", H3))
+    s.append(Paragraph(
+        "Every pattern has its <b>own transpose</b>, -24 to +24 semitones. Select a pattern and drag the "
+        "<b>TRANSP</b> readout (next to WAVEFORM) up or down; you can also drag up or down on the LCD. The LCD "
+        "shows the value as T+5, T-3&hellip; For example: select I-1A and set TRANSP to +5, then select I-2A and "
+        "set it to -3. I-1A now always plays 5 semitones up and I-2A 3 down, whether you switch between them or "
+        "chain them. When you select another pattern, TRANSP shows that pattern's value. The transpose is saved "
+        "with the pattern in your Live set, copied and pasted with it, kept by RANDOM, and exported to MIDI; "
+        "double-click TRANSP to reset it, and UNDO takes back a whole drag.", P))
     s.append(table([
         ["Button", "What it does"],
         ["COPY / PASTE", "Copy the selected pattern, then paste it into another one."],
@@ -223,8 +229,8 @@ def build(out):
         "it's done.", P))
     s.append(Paragraph(
         "The file plays back the same through TRoss 303, a TB-03/TD-3 or any 303 that takes MIDI: accented steps "
-        "have velocity 127 (others 90), slides are overlapping notes, ties are long notes. Both transposes (TRANSP "
-        "and the pattern's own) are included, and the file carries Live's current tempo.", P))
+        "have velocity 127 (others 90), slides are overlapping notes, ties are long notes. Each pattern's transpose "
+        "is included, and the file carries Live's current tempo.", P))
 
     s.append(Paragraph("9. About, credits and license", H2))
     s.append(Paragraph(
@@ -241,6 +247,9 @@ def build(out):
     s.append(Paragraph("10. Version history", H2))
     s.append(table([
         ["Version", "Changes"],
+        ["1.2.1", "TRANSP is now the selected pattern's own transpose (-24 to +24): each pattern keeps its own "
+                  "value and the readout follows the selected pattern. Double-click TRANSP to reset it. (The "
+                  "single global transpose is gone; it wasn't saved per pattern.)"],
         ["1.2.0", "MIDI export of a pattern or the chain. SHIFT + RANDOM makes a variation. Per-pattern transpose "
                   "(drag on the LCD). Bigger LCD with larger text and NEXT pattern info. The smiley appears whenever "
                   "the LCD is touched. Red pattern LEDs follow the playing pattern (the next one blinks). The step "

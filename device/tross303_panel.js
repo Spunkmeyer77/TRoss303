@@ -20,7 +20,7 @@ mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
-var VERSION = "1.2.0";
+var VERSION = "1.2.1";
 var GUMROAD = "https://ticcoross.gumroad.com/";
 var EMAIL = "ticcoross@gmail.com";
 
@@ -45,7 +45,7 @@ var chainOn = 0, chainList = [], chainEdit = 0;
 var showAbout = 0, drag = null;
 var smileyUntil = 0, smileyText = "", msgText = "", msgUntil = 0;
 var pressed = null;   // the key being pressed, drawn pushed in: {x, y, w, h, since}
-var lcdDrag = null;   // dragging on the LCD sets the pattern's own transpose
+var lcdDrag = null;   // dragging on TRANSP (or the LCD) sets the selected pattern's own transpose
 var exportFlashUntil = 0;
 
 // Values of the live.* controls, for drawing them.
@@ -283,8 +283,14 @@ function paint() {
 	rgb([200, 200, 196]); oval(kx + 5, 38, 4.5);
 	rgb([235, 235, 232]); oval(kx + 4.2, 37, 2.2);
 	rgb(C.ink2); text("SAW", SX + 5, 50, 5); text("SQR", SX + 28, 50, 5);
+	// TRANSP: the selected pattern's own transpose. Drag up/down; double-click resets to 0.
 	rgb(C.ink); text("TRANSP", SX + 48, 26, 5.4);
-	rgb([20, 10, 8]); rrect(SX + 36, 32, 24, 11, 1.5); // the live.numbox sits on this
+	rgb([20, 10, 8]); rrect(SX + 36, 32, 24, 11, 1.5);
+	rgb([255, 70, 40]); text(fmtTr(ptr), SX + 48, 37.5, 7);
+	addButton(SX + 34, 29, 28, 16, function () {
+		lcdDrag = { y: lastMouse[1], start: ptr, last: ptr };
+		mgraphics.redraw();
+	});
 	led(SX + 48, 55, ctlv.seq, C.red, 2.2);
 	rgb(C.ink); text("SEQ", SX + 48, 63, 5.2);
 
@@ -391,11 +397,11 @@ function drawLcd() {
 	}
 	text(nameOf(sel), x0 + 5, y0 + 11, 11.5, true, "l");
 	text("L" + len, x1 - 5, y0 + 8.5, 6.2, true, "r");
-	text("T" + (ptr > 0 ? "+" + ptr : ptr), x1 - 5, y0 + 17, 6.2, true, "r");
+	text("T" + fmtTr(ptr), x1 - 5, y0 + 17, 6.2, true, "r");
 	rgb(C.lcdink, 0.35); frect(x0 + 5, y0 + 21.5, x1 - x0 - 10, 0.6);
 	rgb(C.lcdink);
 	var line2;
-	if (lcdDrag) line2 = "TRANSP " + (ptr > 0 ? "+" + ptr : ptr);
+	if (lcdDrag) line2 = "TRANSP " + fmtTr(ptr);
 	else if (t < msgUntil) line2 = msgText;
 	else if (chainEdit) line2 = "CHAIN " + chainList.length + (chainList.length ? " >" + nameOf(chainList[chainList.length - 1]) : "");
 	else if (playStep >= 0) line2 = "PLAY " + nameOf(playingIdx);
@@ -405,6 +411,8 @@ function drawLcd() {
 	if (playStep >= 0 && sel !== playingIdx && !lcdDrag) line3 = "NEXT " + nameOf(sel);
 	text(line3, x0 + 5, y0 + 36.5, 5.4, false, "l");
 }
+
+function fmtTr(v) { return v > 0 ? "+" + v : String(v); }
 
 function showSmiley(label) {
 	smileyText = label;
@@ -601,8 +609,8 @@ function ondrag(x, y, but, cmd, shift, capslock, option, ctrl) {
 			mgraphics.redraw();
 			return;
 		}
-		var tr = lcdDrag.start + Math.round((lcdDrag.y - y) / 5);
-		tr = tr < -12 ? -12 : tr > 12 ? 12 : tr;
+		var tr = lcdDrag.start + Math.round((lcdDrag.y - y) / 4);
+		tr = tr < -24 ? -24 : tr > 24 ? 24 : tr;
 		if (tr !== lcdDrag.last) {
 			lcdDrag.last = tr;
 			ptr = tr;
@@ -624,7 +632,17 @@ function ondrag(x, y, but, cmd, shift, capslock, option, ctrl) {
 }
 ondrag.local = 1;
 
-function ondblclick(x, y, but, cmd, shift, capslock, option, ctrl) { onclick(x, y, but, cmd, shift, capslock, option, ctrl); }
+function ondblclick(x, y, but, cmd, shift, capslock, option, ctrl) {
+	// Double-click TRANSP: back to 0.
+	if (x >= SX + 34 && x < SX + 62 && y >= 29 && y < 45) {
+		ptr = 0;
+		send("ptranspose", 0);
+		send("ptransposeend");
+		mgraphics.redraw();
+		return;
+	}
+	onclick(x, y, but, cmd, shift, capslock, option, ctrl);
+}
 ondblclick.local = 1;
 
 function onresize(w, h) { mgraphics.redraw(); }

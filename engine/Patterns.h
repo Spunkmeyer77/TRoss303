@@ -59,7 +59,7 @@ struct Step {
 	int semis() const { return int(note) + (int(oct) - 1) * 12; }
 };
 
-constexpr int kTransposeRange = 12; // per-pattern transpose, semitones either way
+constexpr int kTransposeRange = 24; // per-pattern transpose, semitones either way
 
 struct Pattern {
 	std::array<Step, kSteps> steps{};

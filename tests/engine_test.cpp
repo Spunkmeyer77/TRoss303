@@ -283,7 +283,7 @@ int main(int argc, char **argv)
 		a.setTranspose(41, 99); // clamped
 		PatternBank b;
 		CHECK(b.load(a.save()));
-		CHECK(b.transpose(3) == -7 && b.transpose(40) == 12 && b.transpose(41) == 12);
+		CHECK(b.transpose(3) == -7 && b.transpose(40) == 12 && b.transpose(41) == 24);
 		// Build v1 data by hand: no transpose field.
 		std::vector<int> v1{1};
 		for (int p = 0; p < kPatterns; ++p) {

@@ -180,9 +180,7 @@ wave = live_param("live.tab", (500, 140, 28, 14), (SX + 2, 31, 28, 14), "Wavefor
                   extra=dict(invisible_button, num_lines_patching=1, num_lines_presentation=1))
 ctl.append((wave, "wave"))
 
-transp = live_param("live.numbox", (560, 140, 24, 11), (SX + 36, 32, 24, 11), "Transpose", "Transp", 1, -24, 24, 0,
-                    unitstyle=7, extra=dict(readout_style))
-ctl.append((transp, "transpose"))
+# TRANSP is drawn and edited by the panel: it is the selected pattern's own transpose.
 
 seq = live_param("live.text", (620, 140, 22, 19), (SX + 37, 48, 22, 19), "Sequencer", "Seq", 2,
                  enum=["off", "on"], initial=1, extra=dict(invisible_button, text="", texton="", mode=1))

@@ -22,8 +22,7 @@ macOS (`tross303~.mxo`, Apple Silicon + Intel) and Windows (`tross303~.mxe64`), 
 - **Sound**: the [Lemus](https://github.com/lemus-dev/lemus) ro-mono-303 voice, used unchanged: a
   part-by-part model of the TB-303 main board from the CPU latches on (pitch DAC and slide, VCO,
   4-pole ladder, MEG/VEG, accent sweep, VCA, output stage), oversampled.
-- **Controls**: Tuning, Cut Off, Resonance, Env Mod, Decay, Accent, Volume, Saw/Square, Cut Max,
-  Transpose. All Live parameters (automation, mapping, saved with the set).
+- **Controls**: Tuning, Cut Off, Resonance, Env Mod, Decay, Accent, Volume, Saw/Square, Cut Max. All Live parameters (automation, mapping, saved with the set).
 - **Sequencer**: 16 steps with note, octave up/down, accent, slide and note/tie/rest, 1–16 step
   length, synced to Live's transport.
 - **Pattern memory** like the 303: 4 groups × 8 patterns × A/B = 64 patterns, saved in the Live set.
@@ -32,7 +31,7 @@ macOS (`tross303~.mxo`, Apple Silicon + Intel) and Windows (`tross303~.mxe64`), 
 - **Random pattern creator**: scale and root, density, accent, slide and octave amounts, and locks
   per lane (re-roll only the rhythm, only the accents…).
 - **Variation**: SHIFT + RANDOM changes a few steps of the current line.
-- **Per-pattern transpose** (drag on the LCD), on top of the global TRANSP.
+- **Per-pattern transpose**: each pattern has its own TRANSP value (−24…+24).
 - **MIDI export** of a pattern or the whole chain to a .mid file.
 - **MIDI**: notes play the voice too (velocity ≥ 100 = accent, overlapping notes slide).
 
