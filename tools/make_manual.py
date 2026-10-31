@@ -64,15 +64,73 @@ def header_footer(canvas, doc):
     canvas.restoreState()
 
 
+def cover(canvas, doc):
+    w, h = A4
+    canvas.saveState()
+    # brushed silver top, black lower half, like the panel
+    canvas.setFillColor(colors.HexColor("#c4c4c0"))
+    canvas.rect(0, h * 0.42, w, h * 0.58, stroke=0, fill=1)
+    canvas.setStrokeColor(colors.Color(1, 1, 1, 0.18))
+    canvas.setLineWidth(0.4)
+    import random
+    rnd = random.Random(7)
+    y = h * 0.42
+    while y < h:
+        canvas.setStrokeColor(colors.Color(1, 1, 1, rnd.random() * 0.12) if rnd.random() > 0.5 else colors.Color(0, 0, 0, rnd.random() * 0.035))
+        canvas.line(0, y, w, y)
+        y += 1.1
+    canvas.setFillColor(colors.HexColor("#1a1a1c"))
+    canvas.rect(0, 0, w, h * 0.42, stroke=0, fill=1)
+    canvas.setFillColor(colors.HexColor("#c49c3e"))
+    canvas.rect(0, h * 0.42 - 1.5 * mm, w, 1.5 * mm, stroke=0, fill=1)
+    # screws
+    for sx, sy in ((10 * mm, h - 10 * mm), (w - 10 * mm, h - 10 * mm), (10 * mm, 10 * mm), (w - 10 * mm, 10 * mm)):
+        canvas.setFillColor(colors.HexColor("#aaaaa8"))
+        canvas.circle(sx, sy, 2.4 * mm, stroke=0, fill=1)
+        canvas.setStrokeColor(colors.HexColor("#555555"))
+        canvas.setLineWidth(0.8)
+        canvas.line(sx - 1.6 * mm, sy - 0.8 * mm, sx + 1.6 * mm, sy + 0.8 * mm)
+    # title
+    canvas.setFillColor(DARK)
+    canvas.setFont("Helvetica-Bold", 64)
+    canvas.drawString(22 * mm, h - 62 * mm, "TRoss")
+    tw = canvas.stringWidth("TRoss ", "Helvetica-Bold", 64)
+    canvas.setFillColor(RED)
+    canvas.drawString(22 * mm + tw, h - 62 * mm, "303")
+    canvas.setFillColor(colors.HexColor("#46464a"))
+    canvas.setFont("Helvetica-Bold", 15)
+    canvas.drawString(23 * mm, h - 75 * mm, "ACID BASS SYNTHESIZER")
+    canvas.setFont("Helvetica", 11)
+    canvas.drawString(23 * mm, h - 84 * mm, "for Ableton Live  ·  Max for Live")
+    # panel image
+    img = ROOT / "docs" / "panel.png"
+    if img.exists():
+        iw = w - 30 * mm
+        ih = iw * 169 / 760
+        canvas.drawImage(str(img), 15 * mm, h * 0.42 + 18 * mm, iw, ih)
+    # lower half
+    canvas.setFillColor(colors.HexColor("#c49c3e"))
+    canvas.setFont("Helvetica-Bold", 26)
+    canvas.drawString(22 * mm, h * 0.42 - 30 * mm, "USER MANUAL")
+    canvas.setFillColor(colors.HexColor("#d6d6d2"))
+    canvas.setFont("Helvetica", 13)
+    canvas.drawString(22 * mm, h * 0.42 - 40 * mm, "Version " + VERSION)
+    canvas.setFont("Helvetica-Bold", 13)
+    canvas.drawString(22 * mm, 40 * mm, "Ticco Ross")
+    canvas.setFont("Helvetica", 10)
+    canvas.setFillColor(colors.HexColor("#c49c3e"))
+    canvas.drawString(22 * mm, 33 * mm, "ticcoross.gumroad.com")
+    canvas.setFillColor(colors.HexColor("#a0a09c"))
+    canvas.drawString(22 * mm, 27 * mm, "ticcoross@gmail.com")
+    canvas.restoreState()
+
+
 def build(out):
-    s = []
+    s = [PageBreak()]
     s.append(Paragraph("TRoss 303 &mdash; Acid Bass for Max for Live", H1))
     s.append(Paragraph(
         "TRoss 303 is a TB-303 style bass synthesizer with a built-in 303-style step sequencer, 64-pattern "
-        "memory, pattern chaining and a random pattern creator. The sound comes from the <b>Lemus ro-mono-303</b> "
-        "engine: a part-by-part circuit model of the original voice board (pitch and slide, VCO, the "
-        "four-pole transistor ladder filter, envelopes, accent sweep, VCA and output stage), compiled into the "
-        "device so it sounds the same as the Lemus plugin.", P))
+        "memory, pattern chaining and a random pattern creator.", P))
     s.append(Spacer(1, 4 * mm))
     img = ROOT / "docs" / "panel.png"
     if img.exists():
@@ -239,8 +297,7 @@ def build(out):
     s.append(Paragraph(
         "TRoss 303 by Ticco Ross &mdash; ticcoross@gmail.com &mdash; https://ticcoross.gumroad.com/", P))
     s.append(Paragraph(
-        "The sound engine is <b>Lemus ro-mono-303</b> (https://github.com/lemus-dev/lemus, version 0.1.3), used "
-        "unchanged. Lemus and TRoss 303 are free software under the <b>GNU Affero General Public License v3</b>: "
+        "TRoss 303 is free software under the <b>GNU Affero General Public License v3</b>: "
         "the complete source code of this device is at https://github.com/Spunkmeyer77/TRoss303. TB-303 is a "
         "trademark of Roland Corporation; this product is not affiliated with or endorsed by Roland.", SMALL))
 
@@ -259,13 +316,13 @@ def build(out):
         ["1.1.0", "Silver Classic panel: chicken-head knobs, rubber keys, LEDs, green LCD with acid smiley, gold "
                   "keys. Pattern length set from the STEP LEDs."],
         ["1.0.1", "Fix: the panel drawing hid the controls."],
-        ["1.0.0", "First release: Lemus TB-303 voice, 303 sequencer, 64-pattern memory, chain, random creator."],
+        ["1.0.0", "First release: TB-303 voice, 303 sequencer, 64-pattern memory, chain, random creator."],
     ], [22 * mm, 153 * mm]))
 
     doc = SimpleDocTemplate(str(out), pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm,
                             topMargin=22 * mm, bottomMargin=16 * mm,
                             title="TRoss 303 User Manual", author="Ticco Ross")
-    doc.build(s, onFirstPage=header_footer, onLaterPages=header_footer)
+    doc.build(s, onFirstPage=cover, onLaterPages=header_footer)
 
 
 if __name__ == "__main__":
