@@ -67,54 +67,56 @@ def header_footer(canvas, doc):
 def cover(canvas, doc):
     w, h = A4
     canvas.saveState()
-    # brushed silver top, black lower half, like the panel
-    canvas.setFillColor(colors.HexColor("#c4c4c0"))
-    canvas.rect(0, h * 0.42, w, h * 0.58, stroke=0, fill=1)
-    canvas.setStrokeColor(colors.Color(1, 1, 1, 0.18))
-    canvas.setLineWidth(0.4)
-    import random
-    rnd = random.Random(7)
-    y = h * 0.42
-    while y < h:
-        canvas.setStrokeColor(colors.Color(1, 1, 1, rnd.random() * 0.12) if rnd.random() > 0.5 else colors.Color(0, 0, 0, rnd.random() * 0.035))
-        canvas.line(0, y, w, y)
-        y += 1.1
-    canvas.setFillColor(colors.HexColor("#1a1a1c"))
-    canvas.rect(0, 0, w, h * 0.42, stroke=0, fill=1)
-    canvas.setFillColor(colors.HexColor("#c49c3e"))
-    canvas.rect(0, h * 0.42 - 1.5 * mm, w, 1.5 * mm, stroke=0, fill=1)
+    # Dark cover so the silver panel stands out: charcoal with a soft spotlight behind the device.
+    split = h * 0.50
+    canvas.setFillColor(colors.HexColor("#141416"))
+    canvas.rect(0, 0, w, h, stroke=0, fill=1)
+    for k in range(40, 0, -1):
+        canvas.setFillColor(colors.Color(0.55, 0.45, 0.25, 0.006 * (41 - k) / 4))
+        canvas.ellipse(w / 2 - k * 3.2 * mm, split + 22 * mm - k * 1.4 * mm, w / 2 + k * 3.2 * mm, split + 22 * mm + k * 1.4 * mm, stroke=0, fill=1)
     # screws
     for sx, sy in ((10 * mm, h - 10 * mm), (w - 10 * mm, h - 10 * mm), (10 * mm, 10 * mm), (w - 10 * mm, 10 * mm)):
-        canvas.setFillColor(colors.HexColor("#aaaaa8"))
+        canvas.setFillColor(colors.HexColor("#8a8a88"))
         canvas.circle(sx, sy, 2.4 * mm, stroke=0, fill=1)
-        canvas.setStrokeColor(colors.HexColor("#555555"))
+        canvas.setStrokeColor(colors.HexColor("#3a3a3a"))
         canvas.setLineWidth(0.8)
         canvas.line(sx - 1.6 * mm, sy - 0.8 * mm, sx + 1.6 * mm, sy + 0.8 * mm)
     # title
-    canvas.setFillColor(DARK)
+    canvas.setFillColor(colors.HexColor("#e8e8e4"))
     canvas.setFont("Helvetica-Bold", 64)
     canvas.drawString(22 * mm, h - 62 * mm, "TRoss")
     tw = canvas.stringWidth("TRoss ", "Helvetica-Bold", 64)
-    canvas.setFillColor(RED)
+    canvas.setFillColor(colors.HexColor("#d8301e"))
     canvas.drawString(22 * mm + tw, h - 62 * mm, "303")
-    canvas.setFillColor(colors.HexColor("#46464a"))
+    canvas.setFillColor(colors.HexColor("#c49c3e"))
     canvas.setFont("Helvetica-Bold", 15)
     canvas.drawString(23 * mm, h - 75 * mm, "ACID BASS SYNTHESIZER")
+    canvas.setFillColor(colors.HexColor("#a0a09c"))
     canvas.setFont("Helvetica", 11)
-    canvas.drawString(23 * mm, h - 84 * mm, "for Ableton Live  ·  Max for Live")
-    # panel image
+    canvas.drawString(23 * mm, h - 84 * mm, "for Ableton Live  \u00b7  Max for Live")
+    # the device, with a shadow and a thin gold frame
     img = ROOT / "docs" / "panel.png"
     if img.exists():
         iw = w - 30 * mm
         ih = iw * 169 / 760
-        canvas.drawImage(str(img), 15 * mm, h * 0.42 + 18 * mm, iw, ih)
-    # lower half
+        ix, iy = 15 * mm, split - 4 * mm
+        for k in range(6, 0, -1):
+            canvas.setFillColor(colors.Color(0, 0, 0, 0.12))
+            canvas.roundRect(ix - k * 0.5 * mm + 1.5 * mm, iy - k * 0.6 * mm - 2 * mm, iw + k * mm, ih + k * mm, 2 * mm, stroke=0, fill=1)
+        canvas.setFillAlpha(1)
+        canvas.setStrokeAlpha(1)
+        canvas.drawImage(str(img), ix, iy, iw, ih)
+        canvas.setStrokeColor(colors.HexColor("#c49c3e"))
+        canvas.setLineWidth(0.8)
+        canvas.rect(ix - 0.6 * mm, iy - 0.6 * mm, iw + 1.2 * mm, ih + 1.2 * mm, stroke=1, fill=0)
+    # gold rule and the manual title
     canvas.setFillColor(colors.HexColor("#c49c3e"))
+    canvas.rect(22 * mm, split - 22 * mm, 40 * mm, 1.2 * mm, stroke=0, fill=1)
     canvas.setFont("Helvetica-Bold", 26)
-    canvas.drawString(22 * mm, h * 0.42 - 30 * mm, "USER MANUAL")
+    canvas.drawString(22 * mm, split - 36 * mm, "USER MANUAL")
     canvas.setFillColor(colors.HexColor("#d6d6d2"))
     canvas.setFont("Helvetica", 13)
-    canvas.drawString(22 * mm, h * 0.42 - 40 * mm, "Version " + VERSION)
+    canvas.drawString(22 * mm, split - 46 * mm, "Version " + VERSION)
     canvas.setFont("Helvetica-Bold", 13)
     canvas.drawString(22 * mm, 40 * mm, "Ticco Ross")
     canvas.setFont("Helvetica", 10)
